@@ -39,7 +39,10 @@ func (m *mockedFunctionGenerator) Generate(packageName string, w io.Writer) erro
 		Add(m.generateMockReturnValuesOnce()).Line().
 		Add(m.generateMock()).Line().
 		Add(m.generateMockForever()).Line().
-		Add(m.generateMockOnce()).Line()
+		Add(m.generateMockOnce()).Line().
+		Add(m.generateConvertInvocation()).Line().
+		Add(m.generateInvocations()).Line().
+		Add(m.generateTakeOneInvocation()).Line()
 
 	return code.Render(w)
 }
@@ -380,7 +383,7 @@ func (m *mockedFunctionGenerator) generateMockForever() jen.Code {
 }
 
 func (m *mockedFunctionGenerator) mockForeverFuncName() string {
-	return "MockReturnValuesForever"
+	return "MockForever"
 }
 
 func (m *mockedFunctionGenerator) generateMockOnce() jen.Code {
@@ -393,5 +396,75 @@ func (m *mockedFunctionGenerator) generateMockOnce() jen.Code {
 }
 
 func (m *mockedFunctionGenerator) mockOnceFuncName() string {
-	return "MockReturnValuesOnce"
+	return "MockOnce"
+}
+
+func (m *mockedFunctionGenerator) generateConvertInvocation() jen.Code {
+	return jen.Func().
+		Params(jen.Id("m").Op("*").Id(m.mockerStructName())).
+		Id(m.convertInvocationFuncName()).
+		Params(jen.Id("invocation").Qual(m.gomockerPackage(), "Invocation")).
+		Params(jen.Id(m.mockerInvocationStructName())).
+		Block(
+			jen.Id("iv").Op(":=").Id(m.mockerInvocationStructName()).Values(),
+			jen.Id("iv").Dot("Parameters").
+				Op("=").
+				Id("m").Dot(m.parseParamsFunctionName()).Call(jen.Id("invocation").Dot("Parameters").Op("...")),
+			jen.Id("iv").Dot("Returns").
+				Op("=").
+				Id("m").Dot(m.parseReturnsFunctionName()).Call(jen.Id("invocation").Dot("Returns").Op("...")),
+			jen.Return(jen.Id("iv")),
+		)
+}
+
+func (m *mockedFunctionGenerator) convertInvocationFuncName() string {
+	return "convertInvocation"
+}
+
+func (m *mockedFunctionGenerator) generateInvocations() jen.Code {
+	return jen.Func().
+		Params(jen.Id("m").Op("*").Id(m.mockerStructName())).
+		Id(m.invocationsFuncName()).
+		Params().
+		Params(jen.Index().Id(m.mockerInvocationStructName())).
+		Block(
+			jen.Id("invocs").Op(":=").Make(jen.Index().Id(m.mockerInvocationStructName()), jen.Lit(0), jen.Lit(0)),
+			jen.For(
+				jen.List(jen.Op("_"), jen.Id("generalInvoc")).
+					Op(":=").
+					Range().
+					Id("m").Dot("mocker").Dot("Invocations").Call(),
+			).Block(
+				jen.Id("invocs").
+					Op("=").
+					Append(
+						jen.Id("invocs"),
+						jen.Id("m").Dot(m.convertInvocationFuncName()).Call(jen.Id("generalInvoc")),
+					),
+			),
+			jen.Return(jen.Id("invocs")),
+		)
+}
+
+func (m *mockedFunctionGenerator) invocationsFuncName() string {
+	return "Invocation"
+}
+
+func (m *mockedFunctionGenerator) generateTakeOneInvocation() jen.Code {
+	return jen.Func().
+		Params(jen.Id("m").Op("*").Id(m.mockerStructName())).
+		Id(m.takeOneInvocationFuncName()).
+		Params().
+		Params(jen.Id(m.mockerInvocationStructName())).
+		Block(
+			jen.Return(
+				jen.Id("m").
+					Dot(m.convertInvocationFuncName()).
+					Call(jen.Id("m").Dot("mocker").Dot("TakeOneInvocation").Call()),
+			),
+		)
+}
+
+func (m *mockedFunctionGenerator) takeOneInvocationFuncName() string {
+	return "TakeOneInvocation"
 }

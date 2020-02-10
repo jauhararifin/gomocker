@@ -1,4 +1,4 @@
-package tester
+package gomocker
 
 import (
 	"context"
@@ -10,16 +10,20 @@ type AddFuncMocker struct {
 	mocker *Mocker
 }
 
+type AddFuncMockerParam struct {
+	p1 context.Context
+	p2 int
+	p3 int
+}
+
+type AddFuncMockerReturn struct {
+	r1 int
+	r2 error
+}
+
 type AddFuncMockerInvocation struct {
-	Parameter struct {
-		p1 context.Context
-		p2 int
-		p3 int
-	}
-	Returns struct {
-		r1 int
-		r2 error
-	}
+	Parameter AddFuncMockerParam
+	Returns   AddFuncMockerReturn
 }
 
 func NewMockedAddFunc() (*AddFuncMocker, AddFunc) {
@@ -28,13 +32,28 @@ func NewMockedAddFunc() (*AddFuncMocker, AddFunc) {
 		mocker: funcMocker,
 	}
 	return addFuncMocker, func(p1 context.Context, p2 int, p3 int) (r1 int, r2 error) {
-		rets := funcMocker.Call(p1, p2, p3)
-		r1 = rets[0].(int)
-		if rets[1] != nil {
-			r2 = rets[1].(error)
-		}
-		return
+		rets := addFuncMocker.parseReturns(funcMocker.Call(p1, p2, p3)...)
+		return rets.r1, rets.r2
 	}
+}
+
+func (m *AddFuncMocker) parseReturns(returns ...interface{}) AddFuncMockerReturn {
+	r := AddFuncMockerReturn{}
+	r.r1 = returns[0].(int)
+	if returns[1] != nil {
+		r.r2 = returns[1].(error)
+	}
+	return r
+}
+
+func (m *AddFuncMocker) parseParams(params ...interface{}) AddFuncMockerParam {
+	p := AddFuncMockerParam{}
+	if params[0] != nil {
+		p.p1 = params[0].(context.Context)
+	}
+	p.p2 = params[1].(int)
+	p.p3 = params[2].(int)
+	return p
 }
 
 func (m *AddFuncMocker) MockReturnDefaultValueOnce() {
@@ -69,33 +88,24 @@ func (m *AddFuncMocker) MockReturnValue(nTimes int, r1 int, r2 error) {
 
 func (m *AddFuncMocker) MockFuncOnce(f func(p1 context.Context, p2 int, p3 int) (int, error)) {
 	m.mocker.MockOnce(NewFuncHandler(func(parameters ...interface{}) []interface{} {
-		r1, r2 := f(
-			parameters[0].(context.Context),
-			parameters[1].(int),
-			parameters[2].(int),
-		)
+		params := m.parseParams(parameters...)
+		r1, r2 := f(params.p1, params.p2, params.p3)
 		return []interface{}{r1, r2}
 	}))
 }
 
 func (m *AddFuncMocker) MockFuncForever(f func(p1 context.Context, p2 int, p3 int) (int, error)) {
 	m.mocker.MockForever(NewFuncHandler(func(parameters ...interface{}) []interface{} {
-		r1, r2 := f(
-			parameters[0].(context.Context),
-			parameters[1].(int),
-			parameters[2].(int),
-		)
+		params := m.parseParams(parameters...)
+		r1, r2 := f(params.p1, params.p2, params.p3)
 		return []interface{}{r1, r2}
 	}))
 }
 
 func (m *AddFuncMocker) MockFunc(nTimes int, f func(p1 context.Context, p2 int, p3 int) (int, error)) {
 	m.mocker.Mock(nTimes, NewFuncHandler(func(parameters ...interface{}) []interface{} {
-		r1, r2 := f(
-			parameters[0].(context.Context),
-			parameters[1].(int),
-			parameters[2].(int),
-		)
+		params := m.parseParams(parameters...)
+		r1, r2 := f(params.p1, params.p2, params.p3)
 		return []interface{}{r1, r2}
 	}))
 }
@@ -109,23 +119,12 @@ func (m *AddFuncMocker) Invocations() []AddFuncMockerInvocation {
 }
 
 func (m *AddFuncMocker) TakeOneInvocation() AddFuncMockerInvocation {
-	return m.convertInvocation(m.mocker.TakeOnceInvocation())
+	return m.convertInvocation(m.mocker.TakeOneInvocation())
 }
 
 func (m *AddFuncMocker) convertInvocation(invocation Invocation) AddFuncMockerInvocation {
 	iv := AddFuncMockerInvocation{}
-
-	iv.Parameter.p1 = invocation.Parameters[0].(context.Context)
-	iv.Parameter.p2 = invocation.Parameters[1].(int)
-	iv.Parameter.p3 = invocation.Parameters[2].(int)
-
-	iv.Returns.r1 = invocation.Returns[0].(int)
-
-	if invocation.Returns[1] == nil {
-		iv.Returns.r2 = nil
-	} else {
-		iv.Returns.r2 = invocation.Returns[1].(error)
-	}
-
+	iv.Parameter = m.parseParams(invocation.Parameters...)
+	iv.Returns = m.parseReturns(invocation.Returns...)
 	return iv
 }

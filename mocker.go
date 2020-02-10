@@ -1,4 +1,4 @@
-package tester
+package gomocker
 
 import (
 	"sync"
@@ -123,8 +123,9 @@ func (f *Mocker) Invocations() []Invocation {
 	return f.invocations
 }
 
-func (f *Mocker) TakeOnceInvocation() Invocation {
+func (f *Mocker) TakeOneInvocation() Invocation {
 	invocation := f.invocations[0]
 	f.invocations = f.invocations[1:]
 	return invocation
 }
+
