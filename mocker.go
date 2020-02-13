@@ -1,7 +1,9 @@
 package gomocker
 
 import (
+	"fmt"
 	"sync"
+	"testing"
 )
 
 var LifetimeForever = -1
@@ -13,10 +15,6 @@ type Invocation struct {
 
 type CallHandler func(parameters ...interface{}) []interface{}
 
-func NewFuncHandler(f func(parameters ...interface{}) []interface{}) CallHandler {
-	return f
-}
-
 func NewFixedReturnsFuncHandler(returnValues ...interface{}) CallHandler {
 	return func(parameters ...interface{}) []interface{} {
 		return returnValues
@@ -25,6 +23,7 @@ func NewFixedReturnsFuncHandler(returnValues ...interface{}) CallHandler {
 
 type Mocker struct {
 	name string
+	t    testing.TB
 
 	handlerLifetime []int
 	handlers        []CallHandler
@@ -33,9 +32,10 @@ type Mocker struct {
 	mux *sync.Mutex
 }
 
-func NewMocker(name string) *Mocker {
+func NewMocker(t testing.TB, name string) *Mocker {
 	return &Mocker{
 		name: name,
+		t:    t,
 
 		handlerLifetime: make([]int, 0, 0),
 		handlers:        make([]CallHandler, 0, 0),
@@ -63,7 +63,7 @@ func (f *Mocker) Call(parameters ...interface{}) []interface{} {
 
 func (f *Mocker) takeOneHandler() (handler CallHandler) {
 	if len(f.handlers) == 0 {
-		panic(f.name+":no handler found")
+		f.t.Fatalf("%s: no handler found", f.name)
 	}
 
 	handler = f.handlers[0]
@@ -81,14 +81,6 @@ func (f *Mocker) takeOneHandler() (handler CallHandler) {
 	return handler
 }
 
-func (f *Mocker) MockOnce(handler CallHandler) *Mocker {
-	return f.Mock(1, handler)
-}
-
-func (f *Mocker) MockForever(handler CallHandler) *Mocker {
-	return f.Mock(LifetimeForever, handler)
-}
-
 func (f *Mocker) Mock(nTimes int, handler CallHandler) *Mocker {
 	f.mux.Lock()
 	defer f.mux.Unlock()
@@ -103,8 +95,8 @@ func (f *Mocker) Mock(nTimes int, handler CallHandler) *Mocker {
 }
 
 func (f *Mocker) assertValidLifetime(nTimes int) {
-	if nTimes < 0 && nTimes != LifetimeForever {
-		panic(f.name+"the valid lifetime are -1, 0, and positive number")
+	if nTimes <= 0 && nTimes != LifetimeForever {
+		f.t.Fatalf("%s: invalid lifetime, the valid lifetime are `LifetimeForever`, and positive numbers", f.name)
 	}
 }
 
@@ -115,7 +107,7 @@ func (f *Mocker) assertLastLifetimeIsNotForever() {
 
 	lastLifeTime := f.handlerLifetime[len(f.handlerLifetime)-1]
 	if lastLifeTime == LifetimeForever {
-		panic(f.name + ":the last handler has been set to forever")
+		f.t.Fatalf("%s: you already set the last handler to forever", f.name)
 	}
 }
 
@@ -129,3 +121,52 @@ func (f *Mocker) TakeOneInvocation() Invocation {
 	return invocation
 }
 
+type MultiMocker struct {
+	name    string
+	t       testing.TB
+	mockers map[string]*Mocker
+	mux     *sync.Mutex
+}
+
+func NewMultiMocker(t testing.TB, name string) *MultiMocker {
+	return &MultiMocker{
+		name:    name,
+		t:       t,
+		mockers: make(map[string]*Mocker),
+		mux:     &sync.Mutex{},
+	}
+}
+
+func (m *MultiMocker) CallMethod(name string, parameters ...interface{}) []interface{} {
+	mck := m.assertNewMethod(name)
+	return mck.Call(parameters...)
+}
+
+func (m *MultiMocker) assertNewMethod(name string) *Mocker {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	if mck, ok := m.mockers[name]; ok {
+		return mck
+	}
+
+	mockerName := fmt.Sprintf("%s.%s", m.name, name)
+	mck := NewMocker(m.t, mockerName)
+	m.mockers[name] = mck
+	return mck
+}
+
+func (m *MultiMocker) MockMethod(name string, nTimes int, handler CallHandler) {
+	mck := m.assertNewMethod(name)
+	mck.Mock(nTimes, handler)
+}
+
+func (m *MultiMocker) MethodInvocations(name string) []Invocation {
+	mck := m.assertNewMethod(name)
+	return mck.Invocations()
+}
+
+func (m *MultiMocker) TakeOneMethodInvocations(name string) Invocation {
+	mck := m.assertNewMethod(name)
+	return mck.TakeOneInvocation()
+}

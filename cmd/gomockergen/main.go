@@ -64,10 +64,14 @@ func generateCodeGenerator(importPath, name, pkg, output string, w io.Writer) er
 			jen.Panic(jen.Id("err")),
 		),
 		jen.Defer().Id("f").Dot("Close").Call(),
-		jen.Id("err").Op("=").Qual(gomockerPath, "GenerateMockedFunction").Call(
-			jen.Qual(importPath, name).Call(jen.Nil()),
-			jen.Lit(pkg),
-			jen.Id("f"),
+		jen.Id("err").Op("=").Qual(gomockerPath, "GenerateMocker").Call(
+			jen.Qual("reflect", "TypeOf").
+				Call(
+					jen.Params(jen.Op("*").Qual(importPath, name)).Call(jen.Nil()),
+				).Dot("Elem").Call(),
+			jen.Qual(gomockerPath, "WithName").Call(jen.Lit(name)),
+			jen.Qual(gomockerPath, "WithPackageName").Call(jen.Lit(pkg)),
+			jen.Qual(gomockerPath, "WithWriter").Call(jen.Id("f")),
 		),
 		jen.If(jen.Id("err").Op("!=").Nil()).Block(
 			jen.Panic(jen.Id("err")),
