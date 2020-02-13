@@ -1,7 +1,6 @@
 package gomocker
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 )
@@ -126,47 +125,4 @@ type MultiMocker struct {
 	t       testing.TB
 	mockers map[string]*Mocker
 	mux     *sync.Mutex
-}
-
-func NewMultiMocker(t testing.TB, name string) *MultiMocker {
-	return &MultiMocker{
-		name:    name,
-		t:       t,
-		mockers: make(map[string]*Mocker),
-		mux:     &sync.Mutex{},
-	}
-}
-
-func (m *MultiMocker) CallMethod(name string, parameters ...interface{}) []interface{} {
-	mck := m.assertNewMethod(name)
-	return mck.Call(parameters...)
-}
-
-func (m *MultiMocker) assertNewMethod(name string) *Mocker {
-	m.mux.Lock()
-	defer m.mux.Unlock()
-
-	if mck, ok := m.mockers[name]; ok {
-		return mck
-	}
-
-	mockerName := fmt.Sprintf("%s.%s", m.name, name)
-	mck := NewMocker(m.t, mockerName)
-	m.mockers[name] = mck
-	return mck
-}
-
-func (m *MultiMocker) MockMethod(name string, nTimes int, handler CallHandler) {
-	mck := m.assertNewMethod(name)
-	mck.Mock(nTimes, handler)
-}
-
-func (m *MultiMocker) MethodInvocations(name string) []Invocation {
-	mck := m.assertNewMethod(name)
-	return mck.Invocations()
-}
-
-func (m *MultiMocker) TakeOneMethodInvocations(name string) Invocation {
-	mck := m.assertNewMethod(name)
-	return mck.TakeOneInvocation()
 }
