@@ -47,7 +47,7 @@ func TestMathMocked_Add(t *testing.T) {
 
 	t.Run("mock default return values once", func(t *testing.T) {
 		mocker, math := NewMockedMath(t)
-		mocker.Add.MockReturnDefaultValueOnce()
+		mocker.Add.MockReturnDefaultValuesOnce()
 		sum, err := math.Add(context.Background(), 17, 19)
 		assert.Nil(t, err, "wrong error")
 		assert.Equal(t, 0, sum, "wrong sum")
@@ -57,7 +57,7 @@ func TestMathMocked_Add(t *testing.T) {
 
 	t.Run("mock default return values 10 times", func(t *testing.T) {
 		mocker, math := NewMockedMath(t)
-		mocker.Add.MockReturnDefaultValue(10)
+		mocker.Add.MockReturnDefaultValues(10)
 		for i := 0; i < 10; i++ {
 			sum, err := math.Add(context.Background(), 17, 19)
 			assert.Nil(t, err, "wrong error")
@@ -71,7 +71,7 @@ func TestMathMocked_Add(t *testing.T) {
 
 	t.Run("mock default return values forever", func(t *testing.T) {
 		mocker, math := NewMockedMath(t)
-		mocker.Add.MockReturnDefaultValueForever()
+		mocker.Add.MockReturnDefaultValuesForever()
 		for i := 0; i < 100; i++ {
 			sum, err := math.Add(context.Background(), 17, 19)
 			assert.Nil(t, err, "wrong error")
@@ -130,11 +130,11 @@ func TestMathMocked_Add(t *testing.T) {
 
 func assertMathAddOneInvocation(t *testing.T, mocker *MathMocker, ctx context.Context, a, b, sum int, err error) {
 	invoc := mocker.Add.TakeOneInvocation()
-	assert.Equal(t, ctx, invoc.Parameters.arg1, "wrong context")
-	assert.Equal(t, a, invoc.Parameters.arg2, "wrong first integer")
-	assert.Equal(t, b, invoc.Parameters.arg3, "wrong second integer")
-	assert.Equal(t, sum, invoc.Returns.r1, "wrong first returns")
-	assert.Equal(t, err, invoc.Returns.r2, "wrong second returns")
+	assert.Equal(t, ctx, invoc.Parameters.Arg1, "wrong context")
+	assert.Equal(t, a, invoc.Parameters.Arg2, "wrong first integer")
+	assert.Equal(t, b, invoc.Parameters.Arg3, "wrong second integer")
+	assert.Equal(t, sum, invoc.Returns.R1, "wrong first returns")
+	assert.Equal(t, err, invoc.Returns.R2, "wrong second returns")
 }
 
 func TestMathMocked_Subtract(t *testing.T) {
@@ -178,7 +178,7 @@ func TestMathMocked_Subtract(t *testing.T) {
 
 	t.Run("mock default return values once", func(t *testing.T) {
 		mocker, math := NewMockedMath(t)
-		mocker.Subtract.MockReturnDefaultValueOnce()
+		mocker.Subtract.MockReturnDefaultValuesOnce()
 		sum, err := math.Subtract(context.Background(), 17, 19)
 		assert.Nil(t, err, "wrong error")
 		assert.Equal(t, 0, sum, "wrong sum")
@@ -188,7 +188,7 @@ func TestMathMocked_Subtract(t *testing.T) {
 
 	t.Run("mock default return values 10 times", func(t *testing.T) {
 		mocker, math := NewMockedMath(t)
-		mocker.Subtract.MockReturnDefaultValue(10)
+		mocker.Subtract.MockReturnDefaultValues(10)
 		for i := 0; i < 10; i++ {
 			sum, err := math.Subtract(context.Background(), 17, 19)
 			assert.Nil(t, err, "wrong error")
@@ -202,7 +202,7 @@ func TestMathMocked_Subtract(t *testing.T) {
 
 	t.Run("mock default return values forever", func(t *testing.T) {
 		mocker, math := NewMockedMath(t)
-		mocker.Subtract.MockReturnDefaultValueForever()
+		mocker.Subtract.MockReturnDefaultValuesForever()
 		for i := 0; i < 100; i++ {
 			sum, err := math.Subtract(context.Background(), 17, 19)
 			assert.Nil(t, err, "wrong error")
@@ -261,10 +261,10 @@ func TestMathMocked_Subtract(t *testing.T) {
 
 func assertMathSubtractOneInvocation(t *testing.T, mocker *MathMocker, ctx context.Context, a, b, result int, err error) {
 	invoc := mocker.Subtract.TakeOneInvocation()
-	assert.Equal(t, ctx, invoc.Parameters.arg1, "wrong context")
-	assert.Equal(t, a, invoc.Parameters.arg2, "wrong first integer")
-	assert.Equal(t, b, invoc.Parameters.arg3, "wrong second integer")
-	assert.Equal(t, result, invoc.Returns.r1, "wrong first returns")
-	assert.Equal(t, err, invoc.Returns.r2, "wrong second returns")
+	assert.Equal(t, ctx, invoc.Parameters.Arg1, "wrong context")
+	assert.Equal(t, a, invoc.Parameters.Arg2, "wrong first integer")
+	assert.Equal(t, b, invoc.Parameters.Arg3, "wrong second integer")
+	assert.Equal(t, result, invoc.Returns.R1, "wrong first returns")
+	assert.Equal(t, err, invoc.Returns.R2, "wrong second returns")
 }
 

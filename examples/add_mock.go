@@ -9,16 +9,16 @@ import (
 )
 
 type AddFuncMocker struct {
-	mocker *gomocker.Mocker
+	mocker *gomocker.ReflectMocker
 }
 type AddFuncMockerParam struct {
-	arg1 context.Context
-	arg2 int
-	arg3 int
+	Arg1 context.Context
+	Arg2 int
+	Arg3 int
 }
 type AddFuncMockerReturn struct {
-	r1 int
-	r2 error
+	R1 int
+	R2 error
 }
 type AddFuncMockerInvocation struct {
 	Parameters AddFuncMockerParam
@@ -26,77 +26,49 @@ type AddFuncMockerInvocation struct {
 }
 
 func NewMockedAddFunc(t testing.TB) (*AddFuncMocker, AddFunc) {
-	f := gomocker.NewMocker(t, "AddFunc")
+	f := gomocker.NewReflectMocker(t, "AddFunc", AddFuncMockerInvocation{})
 	m := &AddFuncMocker{mocker: f}
 	return m, m.Call
 }
-func (m *AddFuncMocker) parseParams(params ...interface{}) AddFuncMockerParam {
-	p := AddFuncMockerParam{}
-	if params[0] != nil {
-		p.arg1 = params[0].(context.Context)
-	}
-	p.arg2 = params[1].(int)
-	p.arg3 = params[2].(int)
-	return p
+func (m *AddFuncMocker) Call(Arg1 context.Context, Arg2 int, Arg3 int) (R1 int, R2 error) {
+	rets := m.mocker.Call(Arg1, Arg2, Arg3).(AddFuncMockerReturn)
+	return rets.R1, rets.R2
 }
-func (m *AddFuncMocker) parseReturns(returns ...interface{}) AddFuncMockerReturn {
-	r := AddFuncMockerReturn{}
-	r.r1 = returns[0].(int)
-	if returns[1] != nil {
-		r.r2 = returns[1].(error)
-	}
-	return r
+func (m *AddFuncMocker) MockReturnDefaultValues(nTimes int) {
+	m.mocker.MockReturnDefaultValues(nTimes)
 }
-func (m *AddFuncMocker) Call(arg1 context.Context, arg2 int, arg3 int) (r1 int, r2 error) {
-	rets := m.parseReturns(m.mocker.Call(arg1, arg2, arg3)...)
-	return rets.r1, rets.r2
+func (m *AddFuncMocker) MockReturnDefaultValuesForever() {
+	m.mocker.MockReturnDefaultValuesForever()
 }
-func (m *AddFuncMocker) MockReturnDefaultValue(nTimes int) {
-	var r1 int
-	var r2 error
-	m.mocker.Mock(nTimes, gomocker.NewFixedReturnsFuncHandler(r1, r2))
+func (m *AddFuncMocker) MockReturnDefaultValuesOnce() {
+	m.mocker.MockReturnDefaultValuesOnce()
 }
-func (m *AddFuncMocker) MockReturnDefaultValueForever() {
-	m.MockReturnDefaultValue(gomocker.LifetimeForever)
+func (m *AddFuncMocker) MockReturnValues(nTimes int, R1 int, R2 error) {
+	m.mocker.MockReturnValues(nTimes, R1, R2)
 }
-func (m *AddFuncMocker) MockReturnDefaultValueOnce() {
-	m.MockReturnDefaultValue(1)
+func (m *AddFuncMocker) MockReturnValuesForever(R1 int, R2 error) {
+	m.mocker.MockReturnValuesForever(R1, R2)
 }
-func (m *AddFuncMocker) MockReturnValues(nTimes int, r1 int, r2 error) {
-	m.mocker.Mock(nTimes, gomocker.NewFixedReturnsFuncHandler(r1, r2))
-}
-func (m *AddFuncMocker) MockReturnValuesForever(r1 int, r2 error) {
-	m.MockReturnValues(gomocker.LifetimeForever, r1, r2)
-}
-func (m *AddFuncMocker) MockReturnValuesOnce(r1 int, r2 error) {
-	m.MockReturnValues(1, r1, r2)
+func (m *AddFuncMocker) MockReturnValuesOnce(R1 int, R2 error) {
+	m.mocker.MockReturnValuesOnce(R1, R2)
 }
 func (m *AddFuncMocker) Mock(nTimes int, f func(context.Context, int, int) (int, error)) {
-	m.mocker.Mock(nTimes, func(parameters ...interface{}) []interface{} {
-		params := m.parseParams(parameters...)
-		r1, r2 := f(params.arg1, params.arg2, params.arg3)
-		return []interface{}{r1, r2}
-	})
+	m.mocker.Mock(nTimes, f)
 }
 func (m *AddFuncMocker) MockForever(f func(context.Context, int, int) (int, error)) {
-	m.Mock(gomocker.LifetimeForever, f)
+	m.mocker.MockForever(f)
 }
 func (m *AddFuncMocker) MockOnce(f func(context.Context, int, int) (int, error)) {
-	m.Mock(1, f)
-}
-func (m *AddFuncMocker) convertInvocation(invocation gomocker.Invocation) AddFuncMockerInvocation {
-	iv := AddFuncMockerInvocation{}
-	iv.Parameters = m.parseParams(invocation.Parameters...)
-	iv.Returns = m.parseReturns(invocation.Returns...)
-	return iv
+	m.mocker.MockOnce(f)
 }
 func (m *AddFuncMocker) Invocations() []AddFuncMockerInvocation {
-	invocs := make([]AddFuncMockerInvocation, 0, 0)
-	for _, generalInvoc := range m.mocker.Invocations() {
-		invocs = append(invocs, m.convertInvocation(generalInvoc))
+	invocs := m.mocker.Invocations()
+	results := make([]AddFuncMockerInvocation, len(invocs), len(invocs))
+	for i, iv := range invocs {
+		results[i] = iv.(AddFuncMockerInvocation)
 	}
-	return invocs
+	return results
 }
 func (m *AddFuncMocker) TakeOneInvocation() AddFuncMockerInvocation {
-	return m.convertInvocation(m.mocker.TakeOneInvocation())
+	return m.mocker.TakeOneInvocation().(AddFuncMockerInvocation)
 }

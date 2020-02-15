@@ -9,7 +9,7 @@ import (
 
 func TestAddFuncMocker_MockReturnDefaultValueOnce(t *testing.T) {
 	mocker, f := NewMockedAddFunc(t)
-	mocker.MockReturnDefaultValueOnce()
+	mocker.MockReturnDefaultValuesForever()
 	sum, err := f(context.Background(), 10, 20)
 	assert.Nil(t, err, "unexpected error when calling AddFunc")
 	assert.Equal(t, 0, sum, "sum should contain default value, which is zero")
@@ -17,7 +17,7 @@ func TestAddFuncMocker_MockReturnDefaultValueOnce(t *testing.T) {
 
 func TestAddFuncMocker_MockReturnDefaultValueForever(t *testing.T) {
 	mocker, f := NewMockedAddFunc(t)
-	mocker.MockReturnDefaultValueForever()
+	mocker.MockReturnDefaultValuesForever()
 	for i := 0; i < 100; i++ {
 		sum, err := f(context.Background(), 10, 20)
 		assert.Nil(t, err, "unexpected error when calling AddFunc")
@@ -27,7 +27,7 @@ func TestAddFuncMocker_MockReturnDefaultValueForever(t *testing.T) {
 
 func TestAddFuncMocker_MockReturnDefaultValue(t *testing.T) {
 	mocker, f := NewMockedAddFunc(t)
-	mocker.MockReturnDefaultValue(10)
+	mocker.MockReturnDefaultValues(10)
 	for i := 0; i < 10; i++ {
 		sum, err := f(context.Background(), 10, 20)
 		assert.Nil(t, err, "unexpected error when calling AddFunc")
@@ -113,11 +113,11 @@ func TestAddFuncMocker_Invocations(t *testing.T) {
 	invocations := mocker.Invocations()
 	assert.Equal(t, 10, len(invocations))
 	for _, iv := range invocations {
-		assert.Equal(t, ctx, iv.Parameters.arg1)
-		assert.Equal(t, 10, iv.Parameters.arg2)
-		assert.Equal(t, 20, iv.Parameters.arg3)
-		assert.Equal(t, 19, iv.Returns.r1)
-		assert.Nil(t, iv.Returns.r2)
+		assert.Equal(t, ctx, iv.Parameters.Arg1)
+		assert.Equal(t, 10, iv.Parameters.Arg2)
+		assert.Equal(t, 20, iv.Parameters.Arg3)
+		assert.Equal(t, 19, iv.Returns.R1)
+		assert.Nil(t, iv.Returns.R2)
 	}
 }
 
@@ -133,11 +133,11 @@ func TestAddFuncMocker_TakeOneInvocation(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		iv := mocker.TakeOneInvocation()
 
-		assert.Equal(t, ctx, iv.Parameters.arg1)
-		assert.Equal(t, 10, iv.Parameters.arg2)
-		assert.Equal(t, 20, iv.Parameters.arg3)
-		assert.Equal(t, 19, iv.Returns.r1)
-		assert.Equal(t, err, iv.Returns.r2)
+		assert.Equal(t, ctx, iv.Parameters.Arg1)
+		assert.Equal(t, 10, iv.Parameters.Arg2)
+		assert.Equal(t, 20, iv.Parameters.Arg3)
+		assert.Equal(t, 19, iv.Returns.R1)
+		assert.Equal(t, err, iv.Returns.R2)
 	}
 }
 
