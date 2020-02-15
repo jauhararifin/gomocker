@@ -27,7 +27,7 @@ type Math_AddMockerInvocation struct {
 }
 
 func NewMockedMath_Add(t testing.TB) (*Math_AddMocker, Math_Add) {
-	f := gomocker.NewReflectMocker(t, "Math_Add", Math_AddMockerInvocation{})
+	f := gomocker.NewReflectMocker(t, "Math_Add", false, Math_AddMockerInvocation{})
 	m := &Math_AddMocker{mocker: f}
 	return m, m.Call
 }
@@ -93,7 +93,7 @@ type Math_SubtractMockerInvocation struct {
 }
 
 func NewMockedMath_Subtract(t testing.TB) (*Math_SubtractMocker, Math_Subtract) {
-	f := gomocker.NewReflectMocker(t, "Math_Subtract", Math_SubtractMockerInvocation{})
+	f := gomocker.NewReflectMocker(t, "Math_Subtract", false, Math_SubtractMockerInvocation{})
 	m := &Math_SubtractMocker{mocker: f}
 	return m, m.Call
 }

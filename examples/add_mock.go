@@ -26,7 +26,7 @@ type AddFuncMockerInvocation struct {
 }
 
 func NewMockedAddFunc(t testing.TB) (*AddFuncMocker, AddFunc) {
-	f := gomocker.NewReflectMocker(t, "AddFunc", AddFuncMockerInvocation{})
+	f := gomocker.NewReflectMocker(t, "AddFunc", false, AddFuncMockerInvocation{})
 	m := &AddFuncMocker{mocker: f}
 	return m, m.Call
 }

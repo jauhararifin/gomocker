@@ -7,25 +7,27 @@ import (
 )
 
 type ReflectMocker struct {
-	mocker   *Mocker
+	mocker *Mocker
 	invocationType,
 	paramsType,
 	returnsType reflect.Type
+	variadic bool
 }
 
-func NewReflectMocker(t testing.TB, name string, invocationStruct interface{}) *ReflectMocker {
+func NewReflectMocker(t testing.TB, name string, variadic bool, invocationStruct interface{}) *ReflectMocker {
 	mocker := NewMocker(t, name)
-	invocationType, paramsType, returnsType := parseInvocationType(invocationStruct)
+	invocationType, paramsType, returnsType := parseInvocationType(variadic, invocationStruct)
 	r := &ReflectMocker{
 		mocker:         mocker,
 		invocationType: invocationType,
 		paramsType:     paramsType,
 		returnsType:    returnsType,
+		variadic:       variadic,
 	}
 	return r
 }
 
-func parseInvocationType(invocationStruct interface{}) (invocationType, paramsType, returnsType reflect.Type) {
+func parseInvocationType(variadic bool, invocationStruct interface{}) (invocationType, paramsType, returnsType reflect.Type) {
 	invocationType = reflect.TypeOf(invocationStruct)
 	if invocationType.Kind() != reflect.Struct {
 		panic(fmt.Errorf("invocation is not a struct"))
@@ -39,6 +41,10 @@ func parseInvocationType(invocationStruct interface{}) (invocationType, paramsTy
 	paramsType = paramsStruct.Type
 	if paramsType.Kind() != reflect.Struct {
 		panic(fmt.Errorf("the invocation's `Parameters` field is not a struct"))
+	}
+
+	if variadic && paramsType.Field(paramsType.NumField()-1).Type.Kind() != reflect.Slice {
+		panic(fmt.Errorf("the function is variadic but the last field is not a slice"))
 	}
 
 	returnsStruct, ok := invocationType.FieldByName("Returns")
@@ -59,6 +65,23 @@ func (r *ReflectMocker) Call(params ...interface{}) interface{} {
 	return r.convertReturnsToStruct(returnValues)
 }
 
+func (r *ReflectMocker) CallVariadic(params ...interface{}) interface{} {
+	actualParams := make([]interface{}, 0, 0 )
+	for i := 0; i < len(params)-1; i++ {
+		actualParams = append(actualParams, params[i])
+	}
+
+	lastVal := reflect.ValueOf(params[len(params)-1])
+	if lastVal.Kind() != reflect.Slice {
+		panic(fmt.Errorf("last value is not a slice"))
+	}
+	for i := 0; i < lastVal.Len(); i++ {
+		actualParams = append(actualParams, lastVal.Index(i).Interface())
+	}
+
+	return r.Call(actualParams...)
+}
+
 func (r *ReflectMocker) convertReturnsToStruct(returns []interface{}) interface{} {
 	resultPtr := reflect.New(r.returnsType)
 	result := resultPtr.Elem()
@@ -75,7 +98,8 @@ func (r *ReflectMocker) MockReturnDefaultValues(nTimes int) {
 	returnValues := make([]interface{}, 0, 0)
 	for i := 0; i < r.returnsType.NumField(); i++ {
 		t := r.returnsType.Field(i).Type
-		returnValues = append(returnValues, reflect.New(t).Elem().Interface())
+		zeroVal := reflect.New(t).Elem().Interface()
+		returnValues = append(returnValues, zeroVal)
 	}
 	r.mocker.Mock(nTimes, NewFixedReturnsFuncHandler(returnValues...))
 }
@@ -140,10 +164,25 @@ func (r *ReflectMocker) assertFuncSignature(fun interface{}) {
 		panic(fmt.Errorf("fun is not a function"))
 	}
 
-	for i := 0; i < funType.NumIn(); i++ {
+	if r.variadic && !funType.IsVariadic() {
+		panic(fmt.Errorf("fun is not variadic"))
+	}
+
+	if !r.variadic && funType.IsVariadic() {
+		panic(fmt.Errorf("fun is variadic"))
+	}
+
+	for i := 0; i < funType.NumIn()-1; i++ {
 		if !funType.In(i).AssignableTo(r.paramsType.Field(i).Type) {
 			panic("wrong function input signature")
 		}
+	}
+
+	lastField := funType.In(funType.NumIn() - 1)
+	if r.variadic && !lastField.AssignableTo(r.paramsType.Field(funType.NumIn()-1).Type) {
+		panic("wrong variadic function signature")
+	} else if !r.variadic && !lastField.AssignableTo(r.paramsType.Field(funType.NumIn()-1).Type) {
+		panic("wrong function input signature")
 	}
 
 	for i := 0; i < funType.NumOut(); i++ {
@@ -184,6 +223,24 @@ func (r *ReflectMocker) convertInvocationToStruct(invocation Invocation) interfa
 }
 
 func (r *ReflectMocker) convertParamsToStruct(params []interface{}) interface{} {
+	if r.variadic {
+		return r.convertVariadicParamsToStruct(params)
+	}
+
+	resultPtr := reflect.New(r.paramsType)
+	result := resultPtr.Elem()
+
+	for i := 0; i < r.paramsType.NumField(); i++ {
+		v := reflect.ValueOf(params[i])
+		if params[i] != nil {
+			result.Field(i).Set(v)
+		}
+	}
+
+	return result.Interface()
+}
+
+func (r *ReflectMocker) convertVariadicParamsToStruct(params []interface{}) interface{} {
 	resultPtr := reflect.New(r.paramsType)
 	result := resultPtr.Elem()
 
@@ -194,11 +251,12 @@ func (r *ReflectMocker) convertParamsToStruct(params []interface{}) interface{} 
 		}
 	}
 
-	lastIdx := r.paramsType.NumField() - 1
-	if params[lastIdx] != nil {
-		v := reflect.ValueOf(params[lastIdx])
-		result.Field(lastIdx).Set(v)
+	lastFieldIdx := r.paramsType.NumField() - 1
+	variadicParams := reflect.MakeSlice(r.paramsType.Field(lastFieldIdx).Type, 0, 0)
+	for i := lastFieldIdx; i < len(params); i++ {
+		variadicParams = reflect.Append(variadicParams, reflect.ValueOf(params[i]))
 	}
+	result.Field(lastFieldIdx).Set(variadicParams)
 
 	return result.Interface()
 }

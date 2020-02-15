@@ -125,9 +125,11 @@ func (m *mockedFunctionGenerator) generateInputParamDefinitions(variadic bool) [
 		name := fmt.Sprintf("Arg%d", i+1)
 		code := jen.Id(name)
 		if variadic && i == m.ftype.NumIn()-1 {
-			code.Op("...")
+			code.Op("...").Add(generateJenFromType(m.ftype.In(i).Elem()))
+		} else {
+			code.Add(generateJenFromType(m.ftype.In(i)))
 		}
-		params[i] = code.Add(generateJenFromType(m.ftype.In(i)))
+		params[i] = code
 	}
 	return params
 }
@@ -178,6 +180,7 @@ func (m *mockedFunctionGenerator) generateConstructor() jen.Code {
 			jen.Id("f").Op(":=").Qual(m.gomockerPackage(), "NewReflectMocker").Call(
 				jen.Id("t"),
 				jen.Lit(m.functionName()),
+				jen.Lit(m.ftype.IsVariadic()),
 				jen.Id(m.mockerInvocationStructName()).Values(),
 			),
 			jen.Id("m").Op(":=").Op("&").Id(m.mockerStructName()).Values(
@@ -203,8 +206,8 @@ func (m *mockedFunctionGenerator) generateMockCall() jen.Code {
 		Block(
 			jen.Id("rets").
 				Op(":=").
-				Id("m").Dot("mocker").Dot("Call").
-				Call(m.generateInputValues()...).
+				Id("m").Dot("mocker").Dot(m.mockerCallFunctionName()).
+				Call(m.generateInputValues(true)...).
 				Assert(jen.Id(m.mockerReturnStructName())),
 			jen.Return(m.generateOutputValues()...),
 		)
@@ -214,11 +217,22 @@ func (m *mockedFunctionGenerator) callFunctionName() string {
 	return "Call"
 }
 
-func (m *mockedFunctionGenerator) generateInputValues() []jen.Code {
+func (m *mockedFunctionGenerator) mockerCallFunctionName() string {
+	if m.ftype.IsVariadic() {
+		return "CallVariadic"
+	}
+	return "Call"
+}
+
+func (m *mockedFunctionGenerator) generateInputValues(ignoreVariadic bool) []jen.Code {
 	params := make([]jen.Code, m.ftype.NumIn(), m.ftype.NumIn())
 	for i := 0; i < m.ftype.NumIn(); i++ {
 		name := fmt.Sprintf("Arg%d", i+1)
-		params[i] = jen.Id(name)
+		code := jen.Id(name)
+		if !ignoreVariadic && m.ftype.IsVariadic() && i == m.ftype.NumIn() - 1 {
+			code.Op("...")
+		}
+		params[i] = code
 	}
 	return params
 }
@@ -551,7 +565,7 @@ func (m *mockedServiceGenerator) genreateServiceMockedMethodImpls() []jen.Code {
 						Dot("mocker").
 						Dot(m.methods[i].Name).
 						Dot("Call").
-						Call(funcgen.generateInputValues()...),
+						Call(funcgen.generateInputValues(false)...),
 				),
 		)
 	}

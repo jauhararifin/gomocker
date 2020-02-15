@@ -32,9 +32,17 @@ func generateJenFromType(t reflect.Type) jen.Code {
 		return jen.Index(jen.Lit(t.Len())).Add(generateJenFromType(t.Elem()))
 	case reflect.Func:
 		params := make([]jen.Code, t.NumIn(), t.NumIn())
-		for i := 0; i < t.NumIn(); i++ {
+		for i := 0; i < t.NumIn()-1; i++ {
 			params[i] = generateJenFromType(t.In(i))
 		}
+
+		lastIdx := t.NumIn() - 1
+		if t.IsVariadic() {
+			params[lastIdx] = jen.Op("...").Add(generateJenFromType(t.In(lastIdx).Elem()))
+		} else {
+			params[lastIdx] = generateJenFromType(t.In(lastIdx))
+		}
+
 		results := make([]jen.Code, t.NumOut(), t.NumOut())
 		for i := 0; i < t.NumOut(); i++ {
 			results[i] = generateJenFromType(t.Out(i))

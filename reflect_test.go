@@ -115,3 +115,45 @@ func TestReflectMocker_Invocations(t *testing.T) {
 		assert.Nil(t, invoc.Returns.Err)
 	}
 }
+
+type SimpleSum func(vals ...int) int
+
+type SimpleSumParams struct {
+	Vals []int
+}
+
+type SimpleSumReturns struct {
+	Sum int
+}
+
+type SimpleSumInvocation struct {
+	Parameters SimpleSumParams
+	Returns SimpleSumReturns
+}
+
+func TestReflectMocker_Call(t *testing.T) {
+	m := NewReflectMocker(t, "SimpleSum", SimpleSumInvocation{})
+	m.MockForever(func(vals ...int) int {
+		s := 0
+		for _, v := range vals {
+			s += v
+		}
+		return s
+	})
+
+	s := m.Call(1,2,3,4,5,6,7,8,9,10)
+	assert.Equal(t, 55, s.(SimpleSumReturns).Sum)
+
+	invocsInterface := m.Invocations()
+	invocs := make([]SimpleSumInvocation, len(invocsInterface), len(invocsInterface))
+	for i, iv := range invocsInterface {
+		invocs[i] = iv.(SimpleSumInvocation)
+	}
+
+	assert.Equal(t, 100, len(invocs))
+	for i := 0; i < 100; i++ {
+		invoc := invocs[i]
+		assert.ElementsMatch(t, []int{1,2,3,4,5,6,7,8,9,10}, invoc.Parameters.Vals)
+		assert.Equal(t, 55, invoc.Returns.Sum)
+	}
+}
