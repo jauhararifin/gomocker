@@ -26,7 +26,7 @@ func GenerateMocker(t reflect.Type, name, packageName string, w io.Writer) (err 
 		return errors.New("unrecognized type")
 	}
 
-	file := jen.NewFile(packageName)
+	file := jen.NewFilePath(packageName)
 	file.Add(code)
 	return file.Render(w)
 }

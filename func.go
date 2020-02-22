@@ -9,6 +9,7 @@ import (
 )
 
 // TODO (jauhararifin): make all local variable have prefix
+// TODO (jauhararifin): add MockOnce, MockForever, MockOutputs, MockOutputsOnce, MockOutputsForever, MockDefaults, MockDefaultsOnce, MockDefaultForever
 
 func GenerateFuncMocker(t reflect.Type, name string) (jen.Code, error) {
 	if t == nil {
@@ -36,17 +37,17 @@ type Namer interface {
 type defaultInputNamer struct {}
 func (*defaultInputNamer) Name(t reflect.Type, i int, public bool) string {
 	if public {
-		return fmt.Sprintf("Arg%d", i)
+		return fmt.Sprintf("Arg%d", i+1)
 	}
-	return fmt.Sprintf("arg%d", i)
+	return fmt.Sprintf("arg%d", i+1)
 }
 
 type defaultOutputNamer struct {}
 func (*defaultOutputNamer) Name(t reflect.Type, i int, public bool) string {
 	if public {
-		return fmt.Sprintf("Out%d", i)
+		return fmt.Sprintf("Out%d", i+1)
 	}
-	return fmt.Sprintf("out%d", i)
+	return fmt.Sprintf("out%d", i+1)
 }
 
 type funcMockerGenerator struct {
@@ -64,7 +65,7 @@ func (f *funcMockerGenerator) generate() jen.Code {
 		Add(f.generateInvocationsMethod()).Line().
 		Add(f.generateTakeOneInvocationMethod()).Line()
 	if f.includeConstructor {
-		code.Add(f.generateFuncMockerConstructor())
+		code.Add(f.generateFuncMockerConstructor()).Line()
 	}
 	return code
 }

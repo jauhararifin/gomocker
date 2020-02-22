@@ -7,10 +7,6 @@ import (
 )
 
 func generateDefinitionFromType(t reflect.Type) jen.Code {
-	if t.Name() != "" {
-		return jen.Qual(t.PkgPath(), t.Name())
-	}
-
 	switch t.Kind() {
 	case reflect.Ptr:
 		return generatePtrDefinitionFromType(t)
@@ -28,6 +24,40 @@ func generateDefinitionFromType(t reflect.Type) jen.Code {
 		return generateFuncDefinitionFromType(t)
 	case reflect.Interface:
 		return generateInterfaceDefinitionFromType(t)
+	case reflect.Bool:
+		return jen.Bool()
+	case reflect.Int:
+		return jen.Int()
+	case reflect.Int8:
+		return jen.Int8()
+	case reflect.Int16:
+		return jen.Int16()
+	case reflect.Int32:
+		return jen.Int32()
+	case reflect.Int64:
+		return jen.Int64()
+	case reflect.Uint:
+		return jen.Uint()
+	case reflect.Uint8:
+		return jen.Uint8()
+	case reflect.Uint16:
+		return jen.Uint16()
+	case reflect.Uint32:
+		return jen.Uint32()
+	case reflect.Uint64:
+		return jen.Uint64()
+	case reflect.Uintptr:
+		return jen.Uintptr()
+	case reflect.Float32:
+		return jen.Float32()
+	case reflect.Float64:
+		return jen.Float64()
+	case reflect.Complex64:
+		return jen.Complex64()
+	case reflect.Complex128:
+		return jen.Complex128()
+	case reflect.String:
+		return jen.String()
 	}
 
 	return jen.Qual(t.PkgPath(), t.Name())
@@ -94,6 +124,13 @@ func generateFuncDefinitionFromType(t reflect.Type) jen.Code {
 }
 
 func generateInterfaceDefinitionFromType(t reflect.Type) jen.Code {
+	if t == reflect.TypeOf((*error)(nil)).Elem() {
+		return jen.Error()
+	}
+	if t.Name() != "" {
+		return jen.Qual(t.PkgPath(), t.Name())
+	}
+
 	nMethod := t.NumMethod()
 	methods := make([]jen.Code, nMethod, nMethod)
 	for i := 0; i < nMethod; i++ {

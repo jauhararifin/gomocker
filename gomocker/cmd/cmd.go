@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 
@@ -20,51 +19,45 @@ var rootCmd = &cobra.Command{
 }
 
 var genCmd = &cobra.Command{
-	Use:   "gen",
-	Short: "Generate mocker",
-	Run: func(cmd *cobra.Command, args []string) {
+	Use:          "gen",
+	Short:        "Generate mocker",
+	SilenceUsage: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
 		inputPackage, err := cmd.Flags().GetString("package")
 		if err != nil {
-			log.Printf("cannot get input package name: %v\n", err)
-			return
+			return fmt.Errorf("cannot get input package name: %v", err)
 		}
 
 		targetPackage, err := cmd.Flags().GetString("target-package")
 		if err != nil {
-			log.Printf("cannot get target package name: %v\n", err)
-			return
+			return fmt.Errorf("cannot get target package name: %v", err)
 		}
 
 		outputFile, err := cmd.Flags().GetString("output")
 		if err != nil {
-			log.Printf("cannot get target output file: %v\n", err)
-			return
+			return fmt.Errorf("cannot get target output file: %v", err)
 		}
 
 		if len(args) == 0 {
-			log.Printf("please provide the function/interface names you wan't to mock\n")
-			return
+			return fmt.Errorf("please provide the function/interface names you wan't to mock")
 		}
 
 		if len(args) != 1 {
-			log.Printf("please provide only one function/interface\n")
-			return
+			return fmt.Errorf("please provide only one function/interface")
 		}
 
 		entityName := args[0]
 
 		if err := os.Mkdir("gomock_runner_temp", 0777); err != nil {
-			log.Printf("cannot prepare directory to create generator: %v\n", err)
-			return
+			return fmt.Errorf("cannot prepare directory to create generator: %v", err)
 		}
 		defer os.RemoveAll("gomock_runner_temp")
 
 		generatorFile, err := os.Create("gomock_runner_temp/main.go")
 		if err != nil {
-			log.Printf("cannot create code generator\n")
-			return
+			return fmt.Errorf("cannot create code generator")
 		}
-		//defer generatorFile.Close()
+		defer generatorFile.Close()
 
 		code := jen.NewFile("main")
 		code.Func().Id("main").Params().Block(
@@ -83,22 +76,26 @@ var genCmd = &cobra.Command{
 				jen.Id("f"),
 			),
 			jen.If(jen.Id("err").Op("!=").Nil()).Block(
+				jen.Id("f").Dot("Close").Call(),
+				jen.Qual("os","Remove").Call(jen.Lit(outputFile)),
 				jen.Panic(jen.Id("err")),
 			),
 		)
 
 		if err := code.Render(generatorFile); err != nil {
-			log.Printf("cannot create code generator: %v\n", err)
-			return
+			return fmt.Errorf("cannot create code generator: %v", err)
 		}
 
 		outputBuff := &bytes.Buffer{}
 		c := exec.Command("go", "run", "gomock_runner_temp/main.go")
 		c.Stdout = outputBuff
+		c.Stderr = outputBuff
 		if err := c.Run(); err != nil {
-			log.Printf("error when creating mocker: %s\n", outputBuff.String())
-			return
+			fmt.Println("wow", err, outputBuff.String())
+			return fmt.Errorf("error when creating mocker: %s", outputBuff.String())
 		}
+
+		return nil
 	},
 }
 
