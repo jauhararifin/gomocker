@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 
 	"github.com/dave/jennifer/jen"
 	"github.com/spf13/cobra"
@@ -121,6 +122,10 @@ func getOutputFile(cmd *cobra.Command) (string, error) {
 	}
 
 	outputFile := "mock.go"
+	if o, ok := outputFileFromEnv(); ok {
+		outputFile = o
+	}
+
 	_, err := os.Stat(outputFile)
 	if os.IsNotExist(err) {
 		return "", fmt.Errorf("please provide --output flag")
@@ -128,6 +133,27 @@ func getOutputFile(cmd *cobra.Command) (string, error) {
 		return "", fmt.Errorf("cannot get output file: %w", err)
 	}
 	return outputFile, nil
+}
+
+func outputFileFromEnv() (string, bool) {
+	gofile, ok := os.LookupEnv("GOFILE")
+	if !ok {
+		return "", false
+	}
+
+	if filepath.Ext(gofile) != ".go" {
+		return "", false
+	}
+
+	base := filepath.Base(gofile)
+	if base == "/" || base == "" {
+		return "", false
+	}
+
+	if base[len(base)-1] == '_' {
+		return base + "mock.go", ok
+	}
+	return base + "_mock.go", ok
 }
 
 func prepareWorkingDir() (directory string, f *os.File, err error) {
