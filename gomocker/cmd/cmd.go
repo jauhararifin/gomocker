@@ -132,7 +132,7 @@ func getOutputFile(cmd *cobra.Command) (string, error) {
 	} else if err != nil {
 		return "", fmt.Errorf("cannot get output file: %w", err)
 	}
-	return "", fmt.Errorf("please provide --output flag")
+	return "", fmt.Errorf("file %s already exists, please provide --output flag", outputFile)
 }
 
 func outputFileFromEnv() (string, bool) {
