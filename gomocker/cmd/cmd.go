@@ -128,11 +128,11 @@ func getOutputFile(cmd *cobra.Command) (string, error) {
 
 	_, err := os.Stat(outputFile)
 	if os.IsNotExist(err) {
-		return "", fmt.Errorf("please provide --output flag")
+		return outputFile, nil
 	} else if err != nil {
 		return "", fmt.Errorf("cannot get output file: %w", err)
 	}
-	return outputFile, nil
+	return "", fmt.Errorf("please provide --output flag")
 }
 
 func outputFileFromEnv() (string, bool) {
