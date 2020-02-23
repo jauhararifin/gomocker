@@ -88,7 +88,7 @@ func (s *serviceMockerGenerator) generateMockedServiceImpl() []jen.Code {
 	impls := make([]jen.Code, 0, 0)
 	for i := 0; i < nMethods; i++ {
 		m := s.serviceType.Method(i)
-		in, out := s.funcMockedGenerators[i].generateParamDef()
+		in, out := s.funcMockedGenerators[i].generateParamDef(true)
 
 		_, inputsForCall, _ := s.funcMockedGenerators[i].generateParamList()
 

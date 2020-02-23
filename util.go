@@ -111,8 +111,9 @@ func generateFuncDefinitionFromType(t reflect.Type) jen.Code {
 	for i := 0; i < t.NumIn(); i++ {
 		if i == t.NumIn()-1 && t.IsVariadic() {
 			params[i] = jen.Op("...").Add(generateDefinitionFromType(t.In(i).Elem()))
+		} else {
+			params[i] = generateDefinitionFromType(t.In(i))
 		}
-		params[i] = generateDefinitionFromType(t.In(i))
 	}
 
 	results := make([]jen.Code, 0, t.NumOut())

@@ -10,9 +10,7 @@ import (
 
 func TestAddFuncMocker_MockReturnDefaultValueOnce(t *testing.T) {
 	f, mocker := MakeMockedAddFunc()
-	mocker.Mock(1, func(i4 context.Context, i2 int, i3 int) (i int, e error) {
-		return
-	})
+	mocker.MockDefaultsOnce()
 	sum, err := f(context.Background(), 10, 20)
 	assert.Nil(t, err, "unexpected error when calling AddFunc")
 	assert.Equal(t, 0, sum, "sum should contain default value, which is zero")
@@ -20,9 +18,7 @@ func TestAddFuncMocker_MockReturnDefaultValueOnce(t *testing.T) {
 
 func TestAddFuncMocker_MockReturnDefaultValueForever(t *testing.T) {
 	f, mocker := MakeMockedAddFunc()
-	mocker.Mock(0, func(i4 context.Context, i2 int, i3 int) (i int, e error) {
-		return
-	})
+	mocker.MockDefaultsForever()
 	for i := 0; i < 100; i++ {
 		sum, err := f(context.Background(), 10, 20)
 		assert.Nil(t, err, "unexpected error when calling AddFunc")
@@ -32,9 +28,7 @@ func TestAddFuncMocker_MockReturnDefaultValueForever(t *testing.T) {
 
 func TestAddFuncMocker_MockReturnDefaultValue(t *testing.T) {
 	f, mocker := MakeMockedAddFunc()
-	mocker.Mock(10, func(i4 context.Context, i2 int, i3 int) (i int, e error) {
-		return
-	})
+	mocker.MockDefaults(10)
 	for i := 0; i < 10; i++ {
 		sum, err := f(context.Background(), 10, 20)
 		assert.Nil(t, err, "unexpected error when calling AddFunc")
@@ -44,9 +38,7 @@ func TestAddFuncMocker_MockReturnDefaultValue(t *testing.T) {
 
 func TestAddFuncMocker_MockReturnValueOnce(t *testing.T) {
 	f, mocker := MakeMockedAddFunc()
-	mocker.Mock(1, func(i4 context.Context, i2 int, i3 int) (i int, e error) {
-		return 20, errors.New("error_test")
-	})
+	mocker.MockOutputsOnce(20, errors.New("error_test"))
 	sum, err := f(context.Background(), 10, 20)
 	assert.NotNil(t, err)
 	assert.Equal(t, "error_test", err.Error())
@@ -55,9 +47,7 @@ func TestAddFuncMocker_MockReturnValueOnce(t *testing.T) {
 
 func TestAddFuncMocker_MockReturnValueForever(t *testing.T) {
 	f, mocker := MakeMockedAddFunc()
-	mocker.Mock(0, func(i4 context.Context, i2 int, i3 int) (i int, e error) {
-		return 20, errors.New("error_test")
-	})
+	mocker.MockOutputsForever(20, errors.New("error_test"))
 	for i := 0; i < 100; i++ {
 		sum, err := f(context.Background(), 10, 20)
 		assert.NotNil(t, err)
@@ -68,9 +58,7 @@ func TestAddFuncMocker_MockReturnValueForever(t *testing.T) {
 
 func TestAddFuncMocker_MockReturnValue(t *testing.T) {
 	f, mocker := MakeMockedAddFunc()
-	mocker.Mock(10, func(i4 context.Context, i2 int, i3 int) (i int, e error) {
-		return 20, errors.New("error_test")
-	})
+	mocker.MockOutputs(10, 20, errors.New("error_test"))
 	for i := 0; i < 10; i++ {
 		sum, err := f(context.Background(), 10, 20)
 		assert.NotNil(t, err)
@@ -117,9 +105,7 @@ func TestAddFuncMocker_MockFunc(t *testing.T) {
 
 func TestAddFuncMocker_Invocations(t *testing.T) {
 	f, mocker := MakeMockedAddFunc()
-	mocker.Mock(0, func(i4 context.Context, i2 int, i3 int) (i int, e error) {
-		return 19, nil
-	})
+	mocker.MockOutputsForever(19, nil)
 	ctx := context.Background()
 	for i := 0; i < 10; i++ {
 		f(ctx, 10, 20)
@@ -140,9 +126,7 @@ func TestAddFuncMocker_TakeOneInvocation(t *testing.T) {
 	f, mocker := MakeMockedAddFunc()
 	ctx := context.Background()
 	err := errors.New("error_test")
-	mocker.Mock(0, func(i4 context.Context, i2 int, i3 int) (i int, e error) {
-		return 19, err
-	})
+	mocker.MockOutputsForever(19, err)
 	for i := 0; i < 10; i++ {
 		f(ctx, 10, 20)
 	}
