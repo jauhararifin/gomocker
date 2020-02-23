@@ -1,12 +1,17 @@
 package gomocker
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/dave/jennifer/jen"
 )
 
 func generateDefinitionFromType(t reflect.Type) jen.Code {
+	if t.Name() != "" {
+		return jen.Qual(t.PkgPath(), t.Name())
+	}
+
 	switch t.Kind() {
 	case reflect.Ptr:
 		return generatePtrDefinitionFromType(t)
@@ -60,7 +65,7 @@ func generateDefinitionFromType(t reflect.Type) jen.Code {
 		return jen.String()
 	}
 
-	return jen.Qual(t.PkgPath(), t.Name())
+	panic(fmt.Errorf("unknown type"))
 }
 
 func generatePtrDefinitionFromType(t reflect.Type) jen.Code {
