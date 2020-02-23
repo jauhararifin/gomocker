@@ -1,6 +1,6 @@
 package examples
 
-//go:generate gomocker gen Aggregator --package github.com/jauhararifin/gomocker/examples --target-package examples --output aggregator_mock.go
+//go:generate gomocker gen Aggregator --package github.com/jauhararifin/gomocker/examples
 
 type Aggregator interface {
 	SumInt(vals ...int) int
