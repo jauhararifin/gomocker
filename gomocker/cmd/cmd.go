@@ -146,6 +146,7 @@ func outputFileFromEnv() (string, bool) {
 	}
 
 	base := filepath.Base(gofile)
+	base = base[:len(base)-3]
 	if base == "/" || base == "" {
 		return "", false
 	}
