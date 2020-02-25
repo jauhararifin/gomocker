@@ -130,7 +130,7 @@ func generateFuncDefinitionFromType(t reflect.Type) jen.Code {
 }
 
 func generateInterfaceDefinitionFromType(t reflect.Type) jen.Code {
-	if t == reflect.TypeOf((*error)(nil)).Elem() {
+	if t.Name() == "error" && t.PkgPath() == "" {
 		return jen.Error()
 	}
 	if t.Name() != "" {
