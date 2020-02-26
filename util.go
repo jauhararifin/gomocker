@@ -8,10 +8,6 @@ import (
 )
 
 func generateDefinitionFromType(t reflect.Type) jen.Code {
-	if t.Name() != "" {
-		return jen.Qual(t.PkgPath(), t.Name())
-	}
-
 	switch t.Kind() {
 	case reflect.Ptr:
 		return generatePtrDefinitionFromType(t)
@@ -63,6 +59,10 @@ func generateDefinitionFromType(t reflect.Type) jen.Code {
 		return jen.Complex128()
 	case reflect.String:
 		return jen.String()
+	}
+
+	if t.Name() != "" {
+		return jen.Qual(t.PkgPath(), t.Name())
 	}
 
 	panic(fmt.Errorf("unknown type"))
