@@ -89,6 +89,10 @@ func generateChanDefinitionFromType(t reflect.Type) jen.Code {
 }
 
 func generateStructDefinitionFromType(t reflect.Type) jen.Code {
+	if t.Name() != "" {
+		return jen.Qual(t.PkgPath(), t.Name())
+	}
+
 	params := make([]jen.Code, 0, t.NumField())
 	for i := 0; i < t.NumField(); i++ {
 		params = append(
