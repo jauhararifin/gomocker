@@ -27,66 +27,50 @@ func parseInt(s string) (int, bool) {
 		return 0, false
 	}
 
+	if len(s) >= 3 && s[0] == '0' && s[1] == '_' && (s[2] < '0' || s[2] > '9') {
+		return 0, false
+	}
+
+	base := uint8(10)
 	if s[0] == '0' && (s[1] == 'x' || s[1] == 'X') {
-		return parseIntHex(s[2:])
+		s = s[2:]
+		base = 16
 	} else if s[0] == '0' && (s[1] == 'b' || s[1] == 'B') {
-		return parseIntBin(s[2:])
+		s = s[2:]
+		base = 2
 	} else if s[0] == '0' {
+		base = 8
 		if s[1] == 'o' || s[1] == 'O' {
-			return parseIntOct(s[2:])
+			s = s[2:]
+		} else {
+			s = s[1:]
 		}
-		return parseIntOct(s[1:])
 	}
 
 	s = strings.ReplaceAll(s, "_", "")
-	n := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return 0, false
-		}
-		n = n*10 + int(s[i]) - '0'
+	if len(s) == 0 {
+		return 0, false
 	}
-	return n, true
-}
 
-func parseIntHex(s string) (int, bool) {
-	s = strings.ReplaceAll(s, "_", "")
 	n := 0
 	for i := 0; i < len(s); i++ {
 		switch {
-		case s[i] >= 'a' && s[i] <= 'f':
-			n = n*16 + int(s[i]) - 'a' + 10
-		case s[i] >= 'A' && s[i] <= 'F':
-			n = n*16 + int(s[i]) - 'A' + 10
-		case s[i] >= '0' && s[i] <= '9':
-			n = n*16 + int(s[i]) - '0'
+		case base >= 10 && s[i] >= 'a' && s[i] < 'a' + base - 10:
+			n = n*int(base) + int(s[i]) - 'a' + 10
+		case base >= 10 && s[i] >= 'A' && s[i] < 'A' + base - 10:
+			n = n*int(base) + int(s[i]) - 'A' + 10
+		case s[i] >= '0' && s[i] < '0'+maxUint8(base, 10):
+			n = n*int(base) + int(s[i]) - '0'
 		}
 	}
 	return n, true
 }
 
-func parseIntOct(s string) (int, bool) {
-	s = strings.ReplaceAll(s, "_", "")
-	n := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '7' {
-			return 0, false
-		}
-		n = n*8 + int(s[i]) - '0'
+func maxUint8(a, b uint8) uint8 {
+	if a > b {
+		return a
 	}
-	return n, true
-}
-
-func parseIntBin(s string) (int, bool) {
-	s = strings.ReplaceAll(s, "_", "")
-	n := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] != '0' && s[i] != '1' {
-			return 0, false
-		}
-		n = n*2 + int(s[i]) - '0'
-	}
-	return n, true
+	return b
 }
 
 type stepFunc func() (jen.Code, error)

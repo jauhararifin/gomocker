@@ -28,13 +28,19 @@ func TestParseInt(t *testing.T) {
 		{name: "42_", number: "42_", expected: 0, isValid: false},
 		{name: "4__2", number: "4__2", expected: 0, isValid: false},
 		{name: "0_xBadFace", number: "0_xBadFace", expected: 0, isValid: false},
+		{name: "0x", number: "0x", expected: 0, isValid: false},
+		{name: "0o", number: "0o", expected: 0, isValid: false},
+		{name: "0O", number: "0O", expected: 0, isValid: false},
+		{name: "0b", number: "0b", expected: 0, isValid: false},
 	}
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			v, ok := parseInt(tc.number)
-			assert.Equal(t, v, tc.expected)
-			assert.Equal(t, ok, tc.isValid)
+			assert.Equal(t, tc.expected, v)
+			assert.Equal(t, tc.isValid, ok)
 		})
 	}
+
+
 }
