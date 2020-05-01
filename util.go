@@ -9,7 +9,7 @@ import (
 	"github.com/dave/jennifer/jen"
 )
 
-func generateCodeFromExpr(e ast.Expr) jen.Code {
+func generateCodeFromExpr(e ast.Expr) (jen.Code, error) {
 	switch v := e.(type) {
 	case *ast.UnaryExpr:
 		return generateCodeFromUnaryExpr(v)
@@ -17,10 +17,10 @@ func generateCodeFromExpr(e ast.Expr) jen.Code {
 		return generateCodeFromBinaryExpr(v)
 	case *ast.BasicLit:
 		return generateCodeFromBasicLit(v)
-	case *ast.Ident:
-		return generateCodeFromIdent(v)
 	case *ast.SelectorExpr:
 		return generateCodeFromSelectorExpr(v)
+	case *ast.Ident:
+		return generateCodeFromIdent(v)
 	case *ast.Ellipsis:
 		return generateCodeFromEllipsis(v)
 	case *ast.StarExpr:
@@ -38,35 +38,47 @@ func generateCodeFromExpr(e ast.Expr) jen.Code {
 	case *ast.InterfaceType:
 		return generateCodeFromInterfaceType(v)
 	}
-	panic(fmt.Errorf("found unrecognized type: %v", e))
+	return nil, fmt.Errorf("found unrecognized type: %v", e)
 }
 
-func generateCodeFromUnaryExpr(unaryExpr *ast.UnaryExpr) jen.Code {
-	return jen.Op(unaryExpr.Op.String()).Add(generateCodeFromExpr(unaryExpr.X))
+func generateCodeFromUnaryExpr(unaryExpr *ast.UnaryExpr) (jen.Code, error) {
+	x, err := generateCodeFromExpr(unaryExpr.X)
+	if err != nil {
+		return nil, err
+	}
+	return jen.Op(unaryExpr.Op.String()).Add(x), nil
 }
 
-func generateCodeFromBinaryExpr(binaryExpr *ast.BinaryExpr) jen.Code {
-	return jen.Add(generateCodeFromExpr(binaryExpr.X)).Op(binaryExpr.Op.String()).Add(generateCodeFromExpr(binaryExpr.Y))
+func generateCodeFromBinaryExpr(binaryExpr *ast.BinaryExpr) (jen.Code, error) {
+	x, err := generateCodeFromExpr(binaryExpr.X)
+	if err != nil {
+		return nil, err
+	}
+	y, err := generateCodeFromExpr(binaryExpr.Y)
+	if err != nil {
+		return nil, err
+	}
+	return jen.Add(x).Op(binaryExpr.Op.String()).Add(y), nil
 }
 
-func generateCodeFromBasicLit(basicLit *ast.BasicLit) jen.Code {
+func generateCodeFromBasicLit(basicLit *ast.BasicLit) (jen.Code, error) {
 	switch basicLit.Kind {
 	case token.INT:
 		i, ok := parseInt(basicLit.Value)
 		if !ok {
-			panic(fmt.Errorf("invalid_int: %s", basicLit.Value))
+			return nil, fmt.Errorf("invalid_int: %s", basicLit.Value)
 		}
-		return jen.Lit(i)
+		return jen.Lit(i), nil
 	case token.FLOAT:
-		panic(fmt.Errorf("not_supported_yet: cannot_convert_float_literal: %v", basicLit))
+		return nil, fmt.Errorf("not_supported_yet: cannot_convert_float_literal: %v", basicLit)
 	case token.CHAR:
-		panic(fmt.Errorf("not_supported_yet: cannot_convert_char_literal: %v", basicLit))
+		return nil, fmt.Errorf("not_supported_yet: cannot_convert_char_literal: %v", basicLit)
 	case token.STRING:
-		panic(fmt.Errorf("not_supported_yet: cannot_convert_string_literal: %v", basicLit))
+		return nil, fmt.Errorf("not_supported_yet: cannot_convert_string_literal: %v", basicLit)
 	case token.IMAG:
-		panic(fmt.Errorf("not_supported_yet: cannot_convert_imag_literal: %v", basicLit))
+		return nil, fmt.Errorf("not_supported_yet: cannot_convert_imag_literal: %v", basicLit)
 	}
-	panic(fmt.Errorf("cannot_parse_basic_lit: %v", basicLit))
+	return nil, fmt.Errorf("cannot_parse_basic_lit: %v", basicLit)
 }
 
 func parseInt(s string) (int, bool) {
@@ -152,75 +164,108 @@ func parseIntBin(s string) (int, bool) {
 	return n, true
 }
 
-func generateCodeFromIdent(ident *ast.Ident) jen.Code {
+func generateCodeFromIdent(ident *ast.Ident) (jen.Code, error) {
 	switch ident.Name {
 	case "bool":
-		return jen.Bool()
+		return jen.Bool(), nil
 	case "int":
-		return jen.Int()
+		return jen.Int(), nil
 	case "int8":
-		return jen.Int8()
+		return jen.Int8(), nil
 	case "int16":
-		return jen.Int16()
+		return jen.Int16(), nil
 	case "int32":
-		return jen.Int32()
+		return jen.Int32(), nil
 	case "int64":
-		return jen.Int64()
+		return jen.Int64(), nil
 	case "uint":
-		return jen.Uint()
+		return jen.Uint(), nil
 	case "uint8":
-		return jen.Uint8()
+		return jen.Uint8(), nil
 	case "uint16":
-		return jen.Uint16()
+		return jen.Uint16(), nil
 	case "uint32":
-		return jen.Uint32()
+		return jen.Uint32(), nil
 	case "uint64":
-		return jen.Uint64()
+		return jen.Uint64(), nil
 	case "uintptr":
-		return jen.Uintptr()
+		return jen.Uintptr(), nil
 	case "float32":
-		return jen.Float32()
+		return jen.Float32(), nil
 	case "float64":
-		return jen.Float64()
+		return jen.Float64(), nil
 	case "complex64":
-		return jen.Complex64()
+		return jen.Complex64(), nil
 	case "complex128":
-		return jen.Complex128()
+		return jen.Complex128(), nil
 	case "string":
-		return jen.String()
+		return jen.String(), nil
 	}
-	return jen.Id(ident.Name)
+	return jen.Id(ident.Name), nil
 }
 
-func generateCodeFromSelectorExpr(selectorExpr *ast.SelectorExpr) jen.Code {
-	return jen.Add(generateCodeFromExpr(selectorExpr.X)).Dot(selectorExpr.Sel.Name)
+func generateCodeFromSelectorExpr(selectorExpr *ast.SelectorExpr) (jen.Code, error) {
+	x, err := generateCodeFromExpr(selectorExpr.X)
+	if err != nil {
+		return nil, err
+	}
+	return jen.Add(x).Dot(selectorExpr.Sel.Name), nil
 }
 
-func generateCodeFromEllipsis(ellipsis *ast.Ellipsis) jen.Code {
-	return jen.Op("...").Add(generateCodeFromExpr(ellipsis.Elt))
+func generateCodeFromEllipsis(ellipsis *ast.Ellipsis) (jen.Code, error) {
+	elt, err := generateCodeFromExpr(ellipsis.Elt)
+	if err != nil {
+		return nil, err
+	}
+	return jen.Op("...").Add(elt), nil
 }
 
-func generateCodeFromStarExpr(starExpr *ast.StarExpr) jen.Code {
-	return jen.Op("*").Add(generateCodeFromExpr(starExpr.X))
+func generateCodeFromStarExpr(starExpr *ast.StarExpr) (jen.Code, error) {
+	x, err := generateCodeFromExpr(starExpr.X)
+	if err != nil {
+		return nil, err
+	}
+	return jen.Op("*").Add(x), nil
 }
 
-func generateCodeFromArrayType(arrayType *ast.ArrayType) jen.Code {
+func generateCodeFromArrayType(arrayType *ast.ArrayType) (jen.Code, error) {
+	elt, err := generateCodeFromExpr(arrayType.Elt)
+	if err != nil {
+		return nil, err
+	}
+
 	if arrayType.Len == nil {
-		return jen.Index().Add(generateCodeFromExpr(arrayType.Elt))
+		return jen.Index().Add(elt), nil
 	}
-	return jen.Index(generateCodeFromExpr(arrayType.Len)).Add(generateCodeFromExpr(arrayType.Elt))
+
+	lenn, err := generateCodeFromExpr(arrayType.Len)
+	if err != nil {
+		return nil, err
+	}
+	return jen.Index(lenn).Add(elt), nil
 }
 
-func generateCodeFromFuncType(funcType *ast.FuncType) jen.Code {
-	params := generateCodeFromFieldList(funcType.Params)
-	results := generateCodeFromFieldList(funcType.Results)
-	return jen.Func().Params(params...).Params(results...)
+func generateCodeFromFuncType(funcType *ast.FuncType) (jen.Code, error) {
+	params, err := generateCodeFromFieldList(funcType.Params)
+	if err != nil {
+		return nil, err
+	}
+
+	results, err := generateCodeFromFieldList(funcType.Results)
+	if err != nil {
+		return nil, err
+	}
+
+	return jen.Func().Params(params...).Params(results...), nil
 }
 
-func generateCodeFromFieldList(fields *ast.FieldList) []jen.Code {
+func generateCodeFromFieldList(fields *ast.FieldList) ([]jen.Code, error) {
 	params := make([]jen.Code, 0, fields.NumFields())
 	for _, field := range fields.List {
-		typeCode := generateCodeFromExpr(field.Type)
+		typeCode, err := generateCodeFromExpr(field.Type)
+		if err != nil {
+			return nil, err
+		}
 
 		if len(field.Names) == 0 {
 			params = append(params, typeCode)
@@ -231,49 +276,74 @@ func generateCodeFromFieldList(fields *ast.FieldList) []jen.Code {
 			params = append(params, jen.Id(id.Name).Add(typeCode))
 		}
 	}
-	return params
+	return params, nil
 }
 
-func generateCodeFromMapType(mapType *ast.MapType) jen.Code {
-	keyDef := generateCodeFromExpr(mapType.Key)
-	valDef := generateCodeFromExpr(mapType.Value)
-	return jen.Map(keyDef).Add(valDef)
+func generateCodeFromMapType(mapType *ast.MapType) (jen.Code, error) {
+	keyDef, err := generateCodeFromExpr(mapType.Key)
+	if err != nil {
+		return nil, err
+	}
+
+	valDef, err := generateCodeFromExpr(mapType.Value)
+	if err != nil {
+		return nil, err
+	}
+
+	return jen.Map(keyDef).Add(valDef), nil
 }
 
-func generateCodeFromChanType(chanType *ast.ChanType) jen.Code {
-	c := generateCodeFromExpr(chanType.Value)
+func generateCodeFromChanType(chanType *ast.ChanType) (jen.Code, error) {
+	c, err := generateCodeFromExpr(chanType.Value)
+	if err != nil {
+		return nil, err
+	}
+
 	switch chanType.Dir {
 	case ast.RECV:
-		return jen.Op("<-").Chan().Add(c)
+		return jen.Op("<-").Chan().Add(c), nil
 	case ast.SEND:
-		return jen.Chan().Op("<-").Add(c)
+		return jen.Chan().Op("<-").Add(c), nil
 	default:
-		return jen.Chan().Add(c)
+		return jen.Chan().Add(c), nil
 	}
 }
 
-func generateCodeFromStructType(structType *ast.StructType) jen.Code {
+func generateCodeFromStructType(structType *ast.StructType) (jen.Code, error) {
 	params := make([]jen.Code, 0, structType.Fields.NumFields())
 	for _, field := range structType.Fields.List {
 		for _, name := range field.Names {
+			typ, err := generateCodeFromExpr(field.Type)
+			if err != nil {
+				return nil, err
+			}
 			params = append(
 				params,
-				jen.Id(name.String()).Add(generateCodeFromExpr(field.Type)),
+				jen.Id(name.String()).Add(typ),
 			)
 		}
 	}
-	return jen.Struct(params...)
+	return jen.Struct(params...), nil
 }
 
-func generateCodeFromInterfaceType(interfaceType *ast.InterfaceType) jen.Code {
+func generateCodeFromInterfaceType(interfaceType *ast.InterfaceType) (jen.Code, error) {
 	nMethod := interfaceType.Methods.NumFields()
 	methods := make([]jen.Code, 0, nMethod)
 	for _, field := range interfaceType.Methods.List {
 		name := field.Names[0].String()
 		funcType := field.Type.(*ast.FuncType)
-		params := generateCodeFromFieldList(funcType.Params)
-		results := generateCodeFromFieldList(funcType.Results)
+
+		params, err := generateCodeFromFieldList(funcType.Params)
+		if err != nil {
+			return nil, err
+		}
+
+		results, err := generateCodeFromFieldList(funcType.Results)
+		if err != nil {
+			return nil, err
+		}
+
 		methods = append(methods, jen.Id(name).Params(params...).Params(results...))
 	}
-	return jen.Interface(methods...)
+	return jen.Interface(methods...), nil
 }

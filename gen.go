@@ -68,10 +68,17 @@ func GenerateMocker(r io.Reader, names []string, w io.Writer, options ...Generat
 
 		switch typ.Type.(type) {
 		case *ast.FuncType:
-			code := generateFunctionMocker(typ, option.namer)
+			code, err := generateFunctionMocker(typ, option.namer)
+			if err != nil {
+				return err
+			}
 			file.Add(code).Line().Line()
 		case *ast.InterfaceType:
-			return fmt.Errorf("interface is not yet supported")
+			code, err := generateInterfaceMocker(typ, option.namer)
+			if err != nil {
+				return err
+			}
+			file.Add(code).Line().Line()
 		default:
 			return fmt.Errorf("only supported interface and function")
 		}
@@ -80,10 +87,23 @@ func GenerateMocker(r io.Reader, names []string, w io.Writer, options ...Generat
 	return file.Render(w)
 }
 
-func generateFunctionMocker(funcType *ast.TypeSpec, mockerNamer Namer) jen.Code {
+func generateFunctionMocker(funcType *ast.TypeSpec, mockerNamer Namer) (jen.Code, error) {
 	funcMockerGenerator := funcMockerGenerator{
 		spec:        funcType,
 		mockerNamer: mockerNamer,
 	}
 	return funcMockerGenerator.generate()
+}
+
+func generateInterfaceMocker(interfaceType *ast.TypeSpec, mockerNamer Namer) (jen.Code, error) {
+	//generator := &interfaceMockerGenerator{
+	//	serviceType:          ,
+	//	name:                 t.Name(),
+	//	mockerName:           t.Name() + "Mocker",
+	//	mockedName:           "Mocked" + t.Name(),
+	//	funcMockerNamer:      &defaultFuncMockedNamer{},
+	//	funcMockedGenerators: nil,
+	//}
+	//return generator.generate()
+	return nil, fmt.Errorf("interface is not supported yet")
 }
