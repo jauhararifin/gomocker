@@ -2,162 +2,278 @@ package gomocker
 
 import (
 	"fmt"
-	"reflect"
+	"go/ast"
+	"go/token"
+	"strings"
 
 	"github.com/dave/jennifer/jen"
 )
 
-func generateDefinitionFromType(t reflect.Type) jen.Code {
-	switch t.Kind() {
-	case reflect.Ptr:
-		return generatePtrDefinitionFromType(t)
-	case reflect.Slice:
-		return generateSliceDefinitionFromType(t)
-	case reflect.Chan:
-		return generateChanDefinitionFromType(t)
-	case reflect.Struct:
-		return generateStructDefinitionFromType(t)
-	case reflect.Map:
-		return generateMapDefinitionFromType(t)
-	case reflect.Array:
-		return generateArrayDefinitionFromType(t)
-	case reflect.Func:
-		return generateFuncDefinitionFromType(t)
-	case reflect.Interface:
-		return generateInterfaceDefinitionFromType(t)
-	case reflect.Bool:
+func generateCodeFromExpr(e ast.Expr) jen.Code {
+	switch v := e.(type) {
+	case *ast.UnaryExpr:
+		return generateCodeFromUnaryExpr(v)
+	case *ast.BinaryExpr:
+		return generateCodeFromBinaryExpr(v)
+	case *ast.BasicLit:
+		return generateCodeFromBasicLit(v)
+	case *ast.Ident:
+		return generateCodeFromIdent(v)
+	case *ast.SelectorExpr:
+		return generateCodeFromSelectorExpr(v)
+	case *ast.Ellipsis:
+		return generateCodeFromEllipsis(v)
+	case *ast.StarExpr:
+		return generateCodeFromStarExpr(v)
+	case *ast.ArrayType:
+		return generateCodeFromArrayType(v)
+	case *ast.FuncType:
+		return generateCodeFromFuncType(v)
+	case *ast.MapType:
+		return generateCodeFromMapType(v)
+	case *ast.ChanType:
+		return generateCodeFromChanType(v)
+	case *ast.StructType:
+		return generateCodeFromStructType(v)
+	case *ast.InterfaceType:
+		return generateCodeFromInterfaceType(v)
+	}
+	panic(fmt.Errorf("found unrecognized type: %v", e))
+}
+
+func generateCodeFromUnaryExpr(unaryExpr *ast.UnaryExpr) jen.Code {
+	return jen.Op(unaryExpr.Op.String()).Add(generateCodeFromExpr(unaryExpr.X))
+}
+
+func generateCodeFromBinaryExpr(binaryExpr *ast.BinaryExpr) jen.Code {
+	return jen.Add(generateCodeFromExpr(binaryExpr.X)).Op(binaryExpr.Op.String()).Add(generateCodeFromExpr(binaryExpr.Y))
+}
+
+func generateCodeFromBasicLit(basicLit *ast.BasicLit) jen.Code {
+	switch basicLit.Kind {
+	case token.INT:
+		i, ok := parseInt(basicLit.Value)
+		if !ok {
+			panic(fmt.Errorf("invalid_int: %s", basicLit.Value))
+		}
+		return jen.Lit(i)
+	case token.FLOAT:
+		panic(fmt.Errorf("not_supported_yet: cannot_convert_float_literal: %v", basicLit))
+	case token.CHAR:
+		panic(fmt.Errorf("not_supported_yet: cannot_convert_char_literal: %v", basicLit))
+	case token.STRING:
+		panic(fmt.Errorf("not_supported_yet: cannot_convert_string_literal: %v", basicLit))
+	case token.IMAG:
+		panic(fmt.Errorf("not_supported_yet: cannot_convert_imag_literal: %v", basicLit))
+	}
+	panic(fmt.Errorf("cannot_parse_basic_lit: %v", basicLit))
+}
+
+func parseInt(s string) (int, bool) {
+	if len(s) == 0 {
+		return 0, false
+	}
+
+	if len(s) == 1 {
+		if s[0] < '0' || s[0] > '9' {
+			return 0, false
+		}
+		return int(s[0]) - '0', true
+	}
+
+	for i := 1; i < len(s); i++ {
+		if s[i] == '_' && s[i-1] == '_' {
+			return 0, false
+		}
+	}
+	if s[len(s)-1] == '_' || s[0] == '_' {
+		return 0, false
+	}
+
+	if s[0] == '0' && (s[1] == 'x' || s[1] == 'X') {
+		return parseIntHex(s[2:])
+	} else if s[0] == '0' && (s[1] == 'b' || s[1] == 'B') {
+		return parseIntBin(s[2:])
+	} else if s[0] == '0' {
+		if s[1] == 'o' || s[1] == 'O' {
+			return parseIntOct(s[2:])
+		}
+		return parseIntOct(s[1:])
+	}
+
+	s = strings.ReplaceAll(s, "_", "")
+	n := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return 0, false
+		}
+		n = n*10 + int(s[i]) - '0'
+	}
+	return n, true
+}
+
+func parseIntHex(s string) (int, bool) {
+	s = strings.ReplaceAll(s, "_", "")
+	n := 0
+	for i := 0; i < len(s); i++ {
+		switch {
+		case s[i] >= 'a' && s[i] <= 'f':
+			n = n*16 + int(s[i]) - 'a' + 10
+		case s[i] >= 'A' && s[i] <= 'F':
+			n = n*16 + int(s[i]) - 'A' + 10
+		case s[i] >= '0' && s[i] <= '9':
+			n = n*16 + int(s[i]) - '0'
+		}
+	}
+	return n, true
+}
+
+func parseIntOct(s string) (int, bool) {
+	s = strings.ReplaceAll(s, "_", "")
+	n := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '7' {
+			return 0, false
+		}
+		n = n*8 + int(s[i]) - '0'
+	}
+	return n, true
+}
+
+func parseIntBin(s string) (int, bool) {
+	s = strings.ReplaceAll(s, "_", "")
+	n := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] != '0' && s[i] != '1' {
+			return 0, false
+		}
+		n = n*2 + int(s[i]) - '0'
+	}
+	return n, true
+}
+
+func generateCodeFromIdent(ident *ast.Ident) jen.Code {
+	switch ident.Name {
+	case "bool":
 		return jen.Bool()
-	case reflect.Int:
+	case "int":
 		return jen.Int()
-	case reflect.Int8:
+	case "int8":
 		return jen.Int8()
-	case reflect.Int16:
+	case "int16":
 		return jen.Int16()
-	case reflect.Int32:
+	case "int32":
 		return jen.Int32()
-	case reflect.Int64:
+	case "int64":
 		return jen.Int64()
-	case reflect.Uint:
+	case "uint":
 		return jen.Uint()
-	case reflect.Uint8:
+	case "uint8":
 		return jen.Uint8()
-	case reflect.Uint16:
+	case "uint16":
 		return jen.Uint16()
-	case reflect.Uint32:
+	case "uint32":
 		return jen.Uint32()
-	case reflect.Uint64:
+	case "uint64":
 		return jen.Uint64()
-	case reflect.Uintptr:
+	case "uintptr":
 		return jen.Uintptr()
-	case reflect.Float32:
+	case "float32":
 		return jen.Float32()
-	case reflect.Float64:
+	case "float64":
 		return jen.Float64()
-	case reflect.Complex64:
+	case "complex64":
 		return jen.Complex64()
-	case reflect.Complex128:
+	case "complex128":
 		return jen.Complex128()
-	case reflect.String:
+	case "string":
 		return jen.String()
 	}
+	return jen.Id(ident.Name)
+}
 
-	if t.Name() != "" {
-		return jen.Qual(t.PkgPath(), t.Name())
+func generateCodeFromSelectorExpr(selectorExpr *ast.SelectorExpr) jen.Code {
+	return jen.Add(generateCodeFromExpr(selectorExpr.X)).Dot(selectorExpr.Sel.Name)
+}
+
+func generateCodeFromEllipsis(ellipsis *ast.Ellipsis) jen.Code {
+	return jen.Op("...").Add(generateCodeFromExpr(ellipsis.Elt))
+}
+
+func generateCodeFromStarExpr(starExpr *ast.StarExpr) jen.Code {
+	return jen.Op("*").Add(generateCodeFromExpr(starExpr.X))
+}
+
+func generateCodeFromArrayType(arrayType *ast.ArrayType) jen.Code {
+	if arrayType.Len == nil {
+		return jen.Index().Add(generateCodeFromExpr(arrayType.Elt))
 	}
-
-	panic(fmt.Errorf("unknown type"))
+	return jen.Index(generateCodeFromExpr(arrayType.Len)).Add(generateCodeFromExpr(arrayType.Elt))
 }
 
-func generatePtrDefinitionFromType(t reflect.Type) jen.Code {
-	return jen.Op("*").Add(generateDefinitionFromType(t.Elem()))
+func generateCodeFromFuncType(funcType *ast.FuncType) jen.Code {
+	params := generateCodeFromFieldList(funcType.Params)
+	results := generateCodeFromFieldList(funcType.Results)
+	return jen.Func().Params(params...).Params(results...)
 }
 
-func generateSliceDefinitionFromType(t reflect.Type) jen.Code {
-	return jen.Index().Add(generateDefinitionFromType(t.Elem()))
+func generateCodeFromFieldList(fields *ast.FieldList) []jen.Code {
+	params := make([]jen.Code, 0, fields.NumFields())
+	for _, field := range fields.List {
+		typeCode := generateCodeFromExpr(field.Type)
+
+		if len(field.Names) == 0 {
+			params = append(params, typeCode)
+			continue
+		}
+
+		for _, id := range field.Names {
+			params = append(params, jen.Id(id.Name).Add(typeCode))
+		}
+	}
+	return params
 }
 
-func generateChanDefinitionFromType(t reflect.Type) jen.Code {
-	c := generateDefinitionFromType(t.Elem())
-	switch t.ChanDir() {
-	case reflect.RecvDir:
+func generateCodeFromMapType(mapType *ast.MapType) jen.Code {
+	keyDef := generateCodeFromExpr(mapType.Key)
+	valDef := generateCodeFromExpr(mapType.Value)
+	return jen.Map(keyDef).Add(valDef)
+}
+
+func generateCodeFromChanType(chanType *ast.ChanType) jen.Code {
+	c := generateCodeFromExpr(chanType.Value)
+	switch chanType.Dir {
+	case ast.RECV:
 		return jen.Op("<-").Chan().Add(c)
-	case reflect.SendDir:
+	case ast.SEND:
 		return jen.Chan().Op("<-").Add(c)
 	default:
 		return jen.Chan().Add(c)
 	}
 }
 
-func generateStructDefinitionFromType(t reflect.Type) jen.Code {
-	if t.Name() != "" {
-		return jen.Qual(t.PkgPath(), t.Name())
-	}
-
-	params := make([]jen.Code, 0, t.NumField())
-	for i := 0; i < t.NumField(); i++ {
-		params = append(
-			params,
-			jen.Id(t.Field(i).Name).Add(generateDefinitionFromType(t.Field(i).Type)),
-		)
+func generateCodeFromStructType(structType *ast.StructType) jen.Code {
+	params := make([]jen.Code, 0, structType.Fields.NumFields())
+	for _, field := range structType.Fields.List {
+		for _, name := range field.Names {
+			params = append(
+				params,
+				jen.Id(name.String()).Add(generateCodeFromExpr(field.Type)),
+			)
+		}
 	}
 	return jen.Struct(params...)
 }
 
-func generateMapDefinitionFromType(t reflect.Type) jen.Code {
-	keyDef := generateDefinitionFromType(t.Key())
-	valDef := generateDefinitionFromType(t.Elem())
-	return jen.Map(keyDef).Add(valDef)
-}
-
-func generateArrayDefinitionFromType(t reflect.Type) jen.Code {
-	arrayLen := jen.Lit(t.Len())
-	elemDef := generateDefinitionFromType(t.Elem())
-	return jen.Index(arrayLen).Add(elemDef)
-}
-
-func generateFuncDefinitionFromType(t reflect.Type) jen.Code {
-	params := make([]jen.Code, t.NumIn(), t.NumIn())
-	for i := 0; i < t.NumIn(); i++ {
-		if i == t.NumIn()-1 && t.IsVariadic() {
-			params[i] = jen.Op("...").Add(generateDefinitionFromType(t.In(i).Elem()))
-		} else {
-			params[i] = generateDefinitionFromType(t.In(i))
-		}
+func generateCodeFromInterfaceType(interfaceType *ast.InterfaceType) jen.Code {
+	nMethod := interfaceType.Methods.NumFields()
+	methods := make([]jen.Code, 0, nMethod)
+	for _, field := range interfaceType.Methods.List {
+		name := field.Names[0].String()
+		funcType := field.Type.(*ast.FuncType)
+		params := generateCodeFromFieldList(funcType.Params)
+		results := generateCodeFromFieldList(funcType.Results)
+		methods = append(methods, jen.Id(name).Params(params...).Params(results...))
 	}
-
-	results := make([]jen.Code, 0, t.NumOut())
-	for i := 0; i < t.NumOut(); i++ {
-		results = append(results, generateDefinitionFromType(t.Out(i)))
-	}
-
-	return jen.Func().Params(params...).Params(results...)
-}
-
-func generateInterfaceDefinitionFromType(t reflect.Type) jen.Code {
-	if t.Name() == "error" && t.PkgPath() == "" {
-		return jen.Error()
-	}
-	if t.Name() != "" {
-		return jen.Qual(t.PkgPath(), t.Name())
-	}
-
-	nMethod := t.NumMethod()
-	methods := make([]jen.Code, nMethod, nMethod)
-	for i := 0; i < nMethod; i++ {
-		methodType := t.Method(i).Type
-
-		params := make([]jen.Code, 0, methodType.NumIn())
-		for i := 0; i < methodType.NumIn(); i++ {
-			params = append(params, generateDefinitionFromType(methodType.In(i)))
-		}
-
-		results := make([]jen.Code, 0, methodType.NumOut())
-		for i := 0; i < methodType.NumOut(); i++ {
-			results = append(results, generateDefinitionFromType(methodType.Out(i)))
-		}
-
-		methods[i] = jen.Id(t.Method(i).Name).Params(params...).Params(results...)
-	}
-
 	return jen.Interface(methods...)
 }

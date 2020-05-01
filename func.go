@@ -1,63 +1,76 @@
 package gomocker
 
 import (
-	"errors"
 	"fmt"
-	"reflect"
+	"go/ast"
+	"strings"
 
 	"github.com/dave/jennifer/jen"
 )
 
-// TODO (jauhararifin): make all local variable have prefix
-// TODO (jauhararifin): check if Namer returns wrong name (when collide with local var, when not capitalized)
-
-func GenerateFuncMocker(t reflect.Type, name string) (jen.Code, error) {
-	if t == nil {
-		return nil, errors.New("invalid type")
-	}
-	if t.Kind() != reflect.Func {
-		return nil, errors.New("type must a function")
-	}
-
-	generator := &funcMockerGenerator{
-		funcType:           t,
-		name:               name,
-		mockerName:         name + "Mocker",
-		inputNamer:         &defaultInputNamer{},
-		outputNamer:        &defaultOutputNamer{},
-		includeConstructor: true,
-	}
-	return generator.generate(), nil
-}
-
 type Namer interface {
-	Name(t reflect.Type, i int, public bool) string
+	MockerName(typeName string) string
+	ConstructorName(typeName string) string
+	ArgumentName(i int, name string, needPublic bool, isReturnArgument bool) string
 }
 
-type defaultInputNamer struct{}
+type defaultNamer struct{}
 
-func (*defaultInputNamer) Name(t reflect.Type, i int, public bool) string {
-	if public {
+func (*defaultNamer) MockerName(typeName string) string {
+	return typeName + "Mocker"
+}
+
+func (*defaultNamer) ConstructorName(typeName string) string {
+	return "NewMocked" + typeName
+}
+
+func (*defaultNamer) ArgumentName(i int, name string, needPublic bool, isReturnArgument bool) string {
+	if name != "" {
+		if needPublic {
+			return strings.ToUpper(name[:1]) + name[1:]
+		}
+		return name
+	} else if isReturnArgument {
+		if needPublic {
+			return fmt.Sprintf("Out%d", i+1)
+		}
+		return fmt.Sprintf("out%d", i+1)
+	} else if needPublic {
 		return fmt.Sprintf("Arg%d", i+1)
 	}
 	return fmt.Sprintf("arg%d", i+1)
 }
 
-type defaultOutputNamer struct{}
+func getDeclarationByName(f *ast.File, name string) *ast.TypeSpec {
+	for _, decl := range f.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
 
-func (*defaultOutputNamer) Name(t reflect.Type, i int, public bool) string {
-	if public {
-		return fmt.Sprintf("Out%d", i+1)
+		for _, spec := range genDecl.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+
+			if typeSpec.Name.String() != name {
+				continue
+			}
+
+			_, IsInterface := typeSpec.Type.(*ast.InterfaceType)
+			_, IsFunction := typeSpec.Type.(*ast.FuncType)
+			if IsInterface || IsFunction {
+				return typeSpec
+			}
+		}
 	}
-	return fmt.Sprintf("out%d", i+1)
+	return nil
 }
 
 type funcMockerGenerator struct {
-	funcType                reflect.Type
-	name                    string
-	mockerName              string
-	inputNamer, outputNamer Namer
-	includeConstructor      bool
+	spec        *ast.TypeSpec
+	mockerNamer Namer
 }
 
 func (f *funcMockerGenerator) generate() jen.Code {
@@ -74,20 +87,22 @@ func (f *funcMockerGenerator) generate() jen.Code {
 		Add(f.generateMockDefaultsForever()).Line().Line().
 		Add(f.generateCallMethod()).Line().Line().
 		Add(f.generateInvocationsMethod()).Line().Line().
-		Add(f.generateTakeOneInvocationMethod()).Line().Line()
-	if f.includeConstructor {
-		code.Add(f.generateFuncMockerConstructor()).Line().Line()
-	}
+		Add(f.generateTakeOneInvocationMethod()).Line().Line().
+		Add(f.generateFuncMockerConstructor()).Line().Line()
 	return code
 }
 
 func (f *funcMockerGenerator) generateMockerStruct() jen.Code {
-	return jen.Type().Id(f.mockerName).Struct(
+	return jen.Type().Id(f.getMockerName()).Struct(
 		jen.Id("mux").Qual("sync", "Mutex"),
-		jen.Id("handlers").Index().Add(generateDefinitionFromType(f.funcType)),
+		jen.Id("handlers").Index().Add(generateCodeFromExpr(f.spec.Type)),
 		jen.Id("lifetimes").Index().Int(),
 		jen.Id("invocations").Index().Add(f.generateInvocationStructType()),
 	)
+}
+
+func (f *funcMockerGenerator) getMockerName() string {
+	return f.mockerNamer.MockerName(f.spec.Name.String())
 }
 
 func (f *funcMockerGenerator) generateInvocationStructType() jen.Code {
@@ -98,36 +113,61 @@ func (f *funcMockerGenerator) generateInvocationStructType() jen.Code {
 }
 
 func (f *funcMockerGenerator) generateInputStruct() jen.Code {
-	nInput := f.funcType.NumIn()
-	inputFields := make([]jen.Code, nInput, nInput)
-	for i := 0; i < nInput; i++ {
-		inputFields = append(
-			inputFields,
-			jen.Id(f.inputNamer.Name(f.funcType, i, true)).Add(generateDefinitionFromType(f.funcType.In(i))),
-		)
+	return f.generateInputOutputStruct(f.spec.Type.(*ast.FuncType).Params, false)
+}
+
+func (f *funcMockerGenerator) generateInputOutputStruct(fieldList *ast.FieldList, isReturnParam bool) jen.Code {
+	paramList := make([]jen.Code, 0, fieldList.NumFields())
+	for _, paramName := range f.generateParamNames(fieldList, true, isReturnParam) {
+		paramList = append(paramList, jen.Id(paramName.name).Add(generateCodeFromExpr(paramName.expr)))
 	}
-	return jen.Struct(inputFields...)
+	return jen.Struct(paramList...)
+}
+
+type paramName struct {
+	name string
+	expr ast.Expr
+}
+
+func (f *funcMockerGenerator) generateParamNames(fieldList *ast.FieldList, needPublic, isReturnParam bool) []paramName {
+	paramNames := make([]paramName, 0, fieldList.NumFields())
+
+	argumentPos := 0
+	for _, field := range fieldList.List {
+		names := make([]string, 0, 0)
+		if len(field.Names) == 0 {
+			name := f.mockerNamer.ArgumentName(argumentPos, "", needPublic, isReturnParam)
+			argumentPos++
+			names = append(names, name)
+		} else {
+			for _, ident := range field.Names {
+				name := f.mockerNamer.ArgumentName(argumentPos, ident.Name, needPublic, isReturnParam)
+				argumentPos++
+				names = append(names, name)
+			}
+		}
+
+		for _, name := range names {
+			paramNames = append(paramNames, paramName{
+				name: name,
+				expr: field.Type,
+			})
+		}
+	}
+	return paramNames
 }
 
 func (f *funcMockerGenerator) generateOutputStruct() jen.Code {
-	nOutput := f.funcType.NumOut()
-	outputFields := make([]jen.Code, nOutput, nOutput)
-	for i := 0; i < nOutput; i++ {
-		outputFields = append(
-			outputFields,
-			jen.Id(f.outputNamer.Name(f.funcType, i, true)).Add(generateDefinitionFromType(f.funcType.Out(i))),
-		)
-	}
-	return jen.Struct(outputFields...)
+	return f.generateInputOutputStruct(f.spec.Type.(*ast.FuncType).Results, true)
 }
 
 func (f *funcMockerGenerator) generateMockMethod() jen.Code {
 	code := jen.Func().
-		Params(jen.Id("m").Op("*").Id(f.mockerName)).
+		Params(jen.Id("m").Op("*").Id(f.getMockerName())).
 		Id("Mock").
 		Params(
 			jen.Id("nTimes").Int(),
-			jen.Id("f").Add(generateDefinitionFromType(f.funcType)),
+			jen.Id("f").Add(generateCodeFromExpr(f.spec.Type)),
 		)
 
 	body := f.generateLockUnlock()
@@ -169,18 +209,18 @@ func (f *funcMockerGenerator) generateLockUnlock() []jen.Code {
 }
 
 func (f *funcMockerGenerator) alreadyMockedPanicMessage() string {
-	return fmt.Sprintf("%s: already mocked forever", f.mockerName)
+	return fmt.Sprintf("%s: already mocked forever", f.getMockerName())
 }
 
 func (f *funcMockerGenerator) invalidLifetimePanicMessage() string {
-	return fmt.Sprintf("%s: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)", f.mockerName)
+	return fmt.Sprintf("%s: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)", f.getMockerName())
 }
 
 func (f *funcMockerGenerator) generateMockOnceMethod() jen.Code {
 	return jen.Func().
-		Params(jen.Id("m").Op("*").Id(f.mockerName)).
+		Params(jen.Id("m").Op("*").Id(f.getMockerName())).
 		Id("MockOnce").
-		Params(jen.Id("f").Add(generateDefinitionFromType(f.funcType))).
+		Params(jen.Id("f").Add(generateCodeFromExpr(f.spec.Type))).
 		Block(
 			jen.Id("m").Dot("Mock").Call(jen.Lit(1), jen.Id("f")),
 		)
@@ -188,36 +228,80 @@ func (f *funcMockerGenerator) generateMockOnceMethod() jen.Code {
 
 func (f *funcMockerGenerator) generateMockForeverMethod() jen.Code {
 	return jen.Func().
-		Params(jen.Id("m").Op("*").Id(f.mockerName)).
+		Params(jen.Id("m").Op("*").Id(f.getMockerName())).
 		Id("MockForever").
-		Params(jen.Id("f").Add(generateDefinitionFromType(f.funcType))).
+		Params(jen.Id("f").Add(generateCodeFromExpr(f.spec.Type))).
 		Block(
 			jen.Id("m").Dot("Mock").Call(jen.Lit(0), jen.Id("f")),
 		)
 }
 
 func (f *funcMockerGenerator) generateMockOutputsMethod() jen.Code {
-	inputs, outputs := f.generateParamDef(true)
+	_, outputs := f.generateParamSignature(true)
 	_, _, outputList := f.generateParamList()
-	_, innerOutput := f.generateParamDef(false)
+	innerInput, innerOutput := f.generateParamSignature(false)
 	return jen.Func().
-		Params(jen.Id("m").Op("*").Id(f.mockerName)).
+		Params(jen.Id("m").Op("*").Id(f.getMockerName())).
 		Id("MockOutputs").
 		Params(
 			append([]jen.Code{jen.Id("nTimes").Int()}, outputs...)...
 		).Block(
 		jen.Id("m").Dot("Mock").Call(
 			jen.Id("nTimes"),
-			jen.Func().Params(inputs...).Params(innerOutput...).Block(jen.Return(outputList...)),
+			jen.Func().Params(innerInput...).Params(innerOutput...).Block(jen.Return(outputList...)),
 		),
 	)
 }
 
+func (f *funcMockerGenerator) generateParamSignature(withOutputName bool) (inputs, outputs []jen.Code) {
+	nIn := f.spec.Type.(*ast.FuncType).Params.NumFields()
+	inputs = make([]jen.Code, 0, nIn)
+	for _, paramName := range f.generateParamNames(f.spec.Type.(*ast.FuncType).Params, false, false) {
+		inputs = append(inputs, jen.Id(paramName.name).Add(generateCodeFromExpr(paramName.expr)))
+	}
+
+	nOut := f.spec.Type.(*ast.FuncType).Results.NumFields()
+	outputs = make([]jen.Code, 0, nOut)
+	for _, paramName := range f.generateParamNames(f.spec.Type.(*ast.FuncType).Results, false, true) {
+		if withOutputName {
+			outputs = append(outputs, jen.Id(paramName.name).Add(generateCodeFromExpr(paramName.expr)))
+		} else {
+			outputs = append(outputs, generateCodeFromExpr(paramName.expr))
+		}
+	}
+
+	return inputs, outputs
+}
+
+func (f *funcMockerGenerator) generateParamList() (inputs, inputsForCall, outputs []jen.Code) {
+	inputNames := f.generateParamNames(f.spec.Type.(*ast.FuncType).Params, false, false)
+	nIn := f.spec.Type.(*ast.FuncType).Params.NumFields()
+	inputsForCall = make([]jen.Code, 0, nIn)
+	inputs = make([]jen.Code, 0, nIn)
+	for _, inputName := range inputNames {
+		callParam := jen.Id(inputName.name)
+		if _, ok := inputName.expr.(*ast.Ellipsis); ok {
+			callParam.Op("...")
+		}
+		inputsForCall = append(inputsForCall, callParam)
+		inputs = append(inputs, jen.Id(inputName.name))
+	}
+
+	outputNames := f.generateParamNames(f.spec.Type.(*ast.FuncType).Results, false, true)
+	nOut := f.spec.Type.(*ast.FuncType).Results.NumFields()
+	outputs = make([]jen.Code, 0, nOut)
+	for _, outputName := range outputNames {
+		outputs = append(outputs, jen.Id(outputName.name))
+	}
+
+	return
+}
+
 func (f *funcMockerGenerator) generateMockOutputsOnceMethod() jen.Code {
-	_, outputs := f.generateParamDef(true)
+	_, outputs := f.generateParamSignature(true)
 	_, _, outputList := f.generateParamList()
 	return jen.Func().
-		Params(jen.Id("m").Op("*").Id(f.mockerName)).
+		Params(jen.Id("m").Op("*").Id(f.getMockerName())).
 		Id("MockOutputsOnce").
 		Params(outputs...).
 		Block(
@@ -228,10 +312,10 @@ func (f *funcMockerGenerator) generateMockOutputsOnceMethod() jen.Code {
 }
 
 func (f *funcMockerGenerator) generateMockOutputsForeverMethod() jen.Code {
-	_, outputs := f.generateParamDef(true)
+	_, outputs := f.generateParamSignature(true)
 	_, _, outputList := f.generateParamList()
 	return jen.Func().
-		Params(jen.Id("m").Op("*").Id(f.mockerName)).
+		Params(jen.Id("m").Op("*").Id(f.getMockerName())).
 		Id("MockOutputsForever").
 		Params(outputs...).
 		Block(
@@ -243,37 +327,33 @@ func (f *funcMockerGenerator) generateMockOutputsForeverMethod() jen.Code {
 
 func (f *funcMockerGenerator) generateMockDefaultsMethod() jen.Code {
 	code := jen.Func().
-		Params(jen.Id("m").Op("*").Id(f.mockerName)).
+		Params(jen.Id("m").Op("*").Id(f.getMockerName())).
 		Id("MockDefaults").
 		Params(jen.Id("nTimes").Int())
 
 	body := make([]jen.Code, 0, 0)
 
-	_, _, outputList := f.generateParamList()
-	for i, o := range outputList {
+	outputNames := f.generateParamNames(f.spec.Type.(*ast.FuncType).Results, false, true)
+	for _, outputName := range outputNames {
 		body = append(
 			body,
-			jen.Var().Add(o).Add(generateDefinitionFromType(f.funcType.Out(i))),
+			jen.Var().Add(jen.Id(outputName.name)).Add(generateCodeFromExpr(outputName.expr)),
 		)
 	}
 
-	body = append(
-		body,
-		jen.Id("m").Dot("MockOutputs").Call(
-			append(
-				[]jen.Code{jen.Id("nTimes")},
-				outputList...,
-			)...,
-		),
-	)
-
+	mockOutputParams := []jen.Code{jen.Id("nTimes")}
+	for _, outputName := range outputNames {
+		mockOutputParams = append(mockOutputParams, jen.Id(outputName.name))
+	}
+	body = append(body, jen.Id("m").Dot("MockOutputs").Call(mockOutputParams...))
 	code.Block(body...)
+
 	return code
 }
 
 func (f *funcMockerGenerator) generateMockDefaultsOnce() jen.Code {
 	return jen.Func().
-		Params(jen.Id("m").Op("*").Id(f.mockerName)).
+		Params(jen.Id("m").Op("*").Id(f.getMockerName())).
 		Id("MockDefaultsOnce").
 		Params().
 		Block(jen.Id("m").Dot("MockDefaults").Call(jen.Lit(1)))
@@ -281,15 +361,15 @@ func (f *funcMockerGenerator) generateMockDefaultsOnce() jen.Code {
 
 func (f *funcMockerGenerator) generateMockDefaultsForever() jen.Code {
 	return jen.Func().
-		Params(jen.Id("m").Op("*").Id(f.mockerName)).
+		Params(jen.Id("m").Op("*").Id(f.getMockerName())).
 		Id("MockDefaultsForever").
 		Params().
 		Block(jen.Id("m").Dot("MockDefaults").Call(jen.Lit(0)))
 }
 
 func (f *funcMockerGenerator) generateCallMethod() jen.Code {
-	params, returns := f.generateParamDef(true)
-	code := jen.Func().Params(jen.Id("m").Op("*").Id(f.mockerName)).Id("Call").Params(params...).Params(returns...)
+	params, returns := f.generateParamSignature(true)
+	code := jen.Func().Params(jen.Id("m").Op("*").Id(f.getMockerName())).Id("Call").Params(params...).Params(returns...)
 
 	body := f.generateLockUnlock()
 
@@ -332,60 +412,12 @@ func (f *funcMockerGenerator) generateCallMethod() jen.Code {
 }
 
 func (f *funcMockerGenerator) noHandler() string {
-	return fmt.Sprintf("%s: no handler", f.mockerName)
-}
-
-func (f *funcMockerGenerator) generateParamDef(withOutputName bool) (inputs, outputs []jen.Code) {
-	nIn := f.funcType.NumIn()
-	inputs = make([]jen.Code, 0, nIn)
-	for i := 0; i < nIn; i++ {
-		c := jen.Id(f.inputNamer.Name(f.funcType, i, false))
-		in := f.funcType.In(i)
-		if i == nIn-1 && f.funcType.IsVariadic() {
-			inputs = append(inputs, c.Op("...").Add(generateDefinitionFromType(in.Elem())))
-		} else {
-			inputs = append(inputs, c.Add(generateDefinitionFromType(in)))
-		}
-	}
-
-	nOut := f.funcType.NumOut()
-	outputs = make([]jen.Code, 0, nOut)
-	for i := 0; i < nOut; i++ {
-		out := f.funcType.Out(i)
-		c := jen.Empty()
-		if withOutputName {
-			c = jen.Id(f.outputNamer.Name(f.funcType, i, false))
-		}
-		outputs = append(outputs, c.Add(generateDefinitionFromType(out)))
-	}
-	return inputs, outputs
-}
-
-func (f *funcMockerGenerator) generateParamList() (inputs, inputsForCall, outputs []jen.Code) {
-	nIn := f.funcType.NumIn()
-	inputsForCall = make([]jen.Code, 0, nIn)
-	inputs = make([]jen.Code, 0, nIn)
-	for i := 0; i < nIn; i++ {
-		callParam := jen.Id(f.inputNamer.Name(f.funcType, i, false))
-		if i == nIn-1 && f.funcType.IsVariadic() {
-			callParam.Op("...")
-		}
-		inputsForCall = append(inputsForCall, callParam)
-		inputs = append(inputs, jen.Id(f.inputNamer.Name(f.funcType, i, false)))
-	}
-
-	nOut := f.funcType.NumOut()
-	outputs = make([]jen.Code, 0, nOut)
-	for i := 0; i < nOut; i++ {
-		outputs = append(outputs, jen.Id(f.outputNamer.Name(f.funcType, i, false)))
-	}
-
-	return
+	return fmt.Sprintf("%s: no handler", f.getMockerName())
 }
 
 func (f *funcMockerGenerator) generateInvocationsMethod() jen.Code {
 	return jen.Func().
-		Params(jen.Id("m").Op("*").Id(f.mockerName)).
+		Params(jen.Id("m").Op("*").Id(f.getMockerName())).
 		Id("Invocations").
 		Params().
 		Params(jen.Index().Add(f.generateInvocationStructType())).
@@ -394,7 +426,7 @@ func (f *funcMockerGenerator) generateInvocationsMethod() jen.Code {
 
 func (f *funcMockerGenerator) generateTakeOneInvocationMethod() jen.Code {
 	code := jen.Func().
-		Params(jen.Id("m").Op("*").Id(f.mockerName)).
+		Params(jen.Id("m").Op("*").Id(f.getMockerName())).
 		Id("TakeOneInvocation").
 		Params().
 		Params(f.generateInvocationStructType())
@@ -419,19 +451,23 @@ func (f *funcMockerGenerator) generateTakeOneInvocationMethod() jen.Code {
 }
 
 func (f *funcMockerGenerator) noInvocationPanicMessage() string {
-	return fmt.Sprintf("%s: no invocations", f.mockerName)
+	return fmt.Sprintf("%s: no invocations", f.getMockerName())
 }
 
 func (f *funcMockerGenerator) generateFuncMockerConstructor() jen.Code {
 	return jen.Func().
-		Id(fmt.Sprintf("MakeMocked%s", f.name)).
+		Id(f.getMockerConstructorName()).
 		Params().
 		Params(
-			generateDefinitionFromType(f.funcType),
-			jen.Op("*").Id(f.mockerName),
+			generateCodeFromExpr(f.spec.Type),
+			jen.Op("*").Id(f.getMockerName()),
 		).
 		Block(
-			jen.Id("m").Op(":=").Op("&").Id(f.mockerName).Values(),
+			jen.Id("m").Op(":=").Op("&").Id(f.getMockerName()).Values(),
 			jen.Return(jen.Id("m").Dot("Call"), jen.Id("m")),
 		)
+}
+
+func (f *funcMockerGenerator) getMockerConstructorName() string {
+	return f.mockerNamer.ConstructorName(f.spec.Name.String())
 }
