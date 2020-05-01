@@ -3,7 +3,7 @@ package gomocker
 import (
 	"testing"
 
-	"github.com/magiconair/properties/assert"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseInt(t *testing.T) {
