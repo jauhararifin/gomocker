@@ -2,7 +2,10 @@
 
 package examples
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 type AddFuncMocker struct {
 	mux         sync.Mutex

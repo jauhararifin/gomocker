@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/jauhararifin/gomocker"
 	"github.com/spf13/cobra"
@@ -119,7 +120,10 @@ func parseOutputFile(cmd *cobra.Command, sourceFile string) (string, error) {
 		return "", err
 	}
 	if outputFile == "" {
-		outputFile = path.Join(path.Dir(sourceFile), path.Base(sourceFile)[:3]+"_mock.go")
+		outputFile = path.Join(
+			path.Dir(sourceFile),
+			strings.TrimSuffix(path.Base(sourceFile), path.Ext(sourceFile))+"_mock.go",
+		)
 	}
 	return outputFile, nil
 }
