@@ -19,5 +19,11 @@ jobs:
     - name: Get dependencies
       run: go mod download
 
+    - name: Install gomocker
+      run: go install github.com/jauhararifin/gomocker/gomocker
+
+    - name: Go Generate
+      run: go generate ./...
+
     - name: Test
       run: go test -v -race ./...

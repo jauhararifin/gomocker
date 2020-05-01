@@ -192,6 +192,10 @@ func (f *exprCodeGenerator) generateCodeFromFuncType(funcType *ast.FuncType) (je
 }
 
 func (f *exprCodeGenerator) generateCodeFromFieldList(fields *ast.FieldList) ([]jen.Code, error) {
+	if fields == nil {
+		return nil, nil
+	}
+
 	params := make([]jen.Code, 0, fields.NumFields())
 	for _, field := range fields.List {
 		typeCode, err := f.generateCodeFromExpr(field.Type)
@@ -242,6 +246,10 @@ func (f *exprCodeGenerator) generateCodeFromChanType(chanType *ast.ChanType) (je
 }
 
 func (f *exprCodeGenerator) generateCodeFromStructType(structType *ast.StructType) (jen.Code, error) {
+	if structType.Fields == nil {
+		return jen.Struct(), nil
+	}
+
 	params := make([]jen.Code, 0, structType.Fields.NumFields())
 	for _, field := range structType.Fields.List {
 		for _, name := range field.Names {
@@ -259,6 +267,10 @@ func (f *exprCodeGenerator) generateCodeFromStructType(structType *ast.StructTyp
 }
 
 func (f *exprCodeGenerator) generateCodeFromInterfaceType(interfaceType *ast.InterfaceType) (jen.Code, error) {
+	if interfaceType.Methods == nil {
+		return jen.Interface(), nil
+	}
+
 	nMethod := interfaceType.Methods.NumFields()
 	methods := make([]jen.Code, 0, nMethod)
 	for _, field := range interfaceType.Methods.List {

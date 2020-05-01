@@ -11,14 +11,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version = "v1.0.0"
+
 var rootCmd = &cobra.Command{
 	Use:   "gomocker",
 	Short: "GoMocker is Golang mocker generator",
 	Long:  "GoMocker generates golang structs to help you mock a function or an interface.",
 }
 
+var versionCmd = &cobra.Command{
+	Use:          "version",
+	Short:        "Print version",
+	SilenceUsage: true,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println(version)
+	},
+}
+
 var genCmd = &cobra.Command{
-	Use:          "gen",
+	Use:          "gen identifier...",
 	Short:        "Generate mocker",
 	SilenceUsage: true,
 	RunE:         executeGen,
@@ -31,6 +42,7 @@ func init() {
 	genCmd.Flags().Bool("force", false, "Force create the file if it is already exist")
 
 	rootCmd.AddCommand(genCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 func Execute() {
