@@ -3,48 +3,14 @@ package gomocker
 import (
 	"fmt"
 	"go/ast"
-	"strings"
 
 	"github.com/dave/jennifer/jen"
 )
 
-type Namer interface {
-	MockerName(typeName string) string
-	ConstructorName(typeName string) string
-	ArgumentName(i int, name string, needPublic bool, isReturnArgument bool) string
-}
-
-type defaultNamer struct{}
-
-func (*defaultNamer) MockerName(typeName string) string {
-	return typeName + "Mocker"
-}
-
-func (*defaultNamer) ConstructorName(typeName string) string {
-	return "NewMocked" + typeName
-}
-
-func (*defaultNamer) ArgumentName(i int, name string, needPublic bool, isReturnArgument bool) string {
-	if name != "" {
-		if needPublic {
-			return strings.ToUpper(name[:1]) + name[1:]
-		}
-		return name
-	} else if isReturnArgument {
-		if needPublic {
-			return fmt.Sprintf("Out%d", i+1)
-		}
-		return fmt.Sprintf("out%d", i+1)
-	} else if needPublic {
-		return fmt.Sprintf("Arg%d", i+1)
-	}
-	return fmt.Sprintf("arg%d", i+1)
-}
-
 type funcMockerGenerator struct {
 	funcName        string
 	funcType        *ast.FuncType
-	mockerNamer     Namer
+	mockerNamer     FuncMockerNamer
 	withConstructor bool
 	exprCodeGen     *exprCodeGenerator
 }

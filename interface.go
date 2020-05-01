@@ -1,7 +1,6 @@
 package gomocker
 
 import (
-	"fmt"
 	"go/ast"
 
 	"github.com/dave/jennifer/jen"
@@ -10,7 +9,8 @@ import (
 type interfaceMockerGenerator struct {
 	interfaceName        string
 	interfaceType        *ast.InterfaceType
-	funcMockerNamer      Namer
+	interfaceMockerNamer InterfaceMockerNamer
+	funcMockerNamer      FuncMockerNamer
 	funcMockedGenerators []*funcMockerGenerator
 	exprCodeGen          *exprCodeGenerator
 }
@@ -54,12 +54,11 @@ func (s *interfaceMockerGenerator) generateServiceMockerStruct() (jen.Code, erro
 }
 
 func (s *interfaceMockerGenerator) getFuncAlias(funcName string) string {
-	return s.interfaceName + "_" + funcName
+	return s.interfaceMockerNamer.FunctionAliasName(s.interfaceName, funcName)
 }
 
 func (s *interfaceMockerGenerator) getMockerStructName() string {
-	// TODO (jauhararifin): create Namer for this
-	return s.interfaceName + "Mocker"
+	return s.interfaceMockerNamer.MockerName(s.interfaceName)
 }
 
 func (s *interfaceMockerGenerator) generateMockedInterfaceStruct() (jen.Code, error) {
@@ -67,7 +66,7 @@ func (s *interfaceMockerGenerator) generateMockedInterfaceStruct() (jen.Code, er
 }
 
 func (s *interfaceMockerGenerator) getMockedStructName() string {
-	return "Mocked" + s.interfaceName
+	return s.interfaceMockerNamer.MockedName(s.interfaceName)
 }
 
 func (s *interfaceMockerGenerator) generateMockedInterfaceImpl() (jen.Code, error) {
@@ -129,5 +128,5 @@ func (s *interfaceMockerGenerator) generateInterfaceMockerConstructor() (jen.Cod
 }
 
 func (s *interfaceMockerGenerator) getConstructorName() string {
-	return fmt.Sprintf("New%s", s.getMockedStructName())
+	return s.interfaceMockerNamer.ConstructorName(s.interfaceName)
 }
