@@ -23,7 +23,9 @@ jobs:
       run: go install github.com/jauhararifin/gomocker/gomocker
 
     - name: Go Generate
-      run: go generate ./...
+      run: |
+        export PATH=$PATH:$(go env GOPATH)/bin
+        go generate ./...
 
     - name: Test
       run: go test -v -race ./...
