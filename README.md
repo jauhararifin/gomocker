@@ -5,7 +5,7 @@ Gomocker generates Golang code to easily mock a function or interface
 ## Installing
 
 ```bash
-go install github.com/jauhararifin/gomocker/gomocker
+go get github.com/jauhararifin/gomocker/gomocker
 ```
 
 ## Example
