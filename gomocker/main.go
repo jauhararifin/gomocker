@@ -9,7 +9,7 @@ import (
 var version = "v1.0.1"
 
 func main() {
-	if buildInfo, ok := debug.ReadBuildInfo(); ok && version == "unknown" {
+	if buildInfo, ok := debug.ReadBuildInfo(); ok {
 		version = buildInfo.Main.Version
 	}
 	cmd.Execute(version)
