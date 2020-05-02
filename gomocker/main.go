@@ -1,9 +1,16 @@
 package main
 
-import "github.com/jauhararifin/gomocker/gomocker/cmd"
+import (
+	"runtime/debug"
 
-var version = "v0.1.0"
+	"github.com/jauhararifin/gomocker/gomocker/cmd"
+)
+
+var version = "unknown"
 
 func main() {
+	if buildInfo, ok := debug.ReadBuildInfo(); ok && version == "unknown" {
+		version = buildInfo.Main.Version
+	}
 	cmd.Execute(version)
 }
