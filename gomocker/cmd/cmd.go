@@ -38,7 +38,7 @@ var genCmd = &cobra.Command{
 func init() {
 	genCmd.Flags().String("source", "", "Your golang source code file. Can omit this when using go generate")
 	genCmd.Flags().String("package", "", "The output mocker package name. By default it will be the same as the source")
-	genCmd.Flags().String("output", "", "Generated mocker output filename, by default it's <source_file>_mock.go")
+	genCmd.Flags().String("output", "", "Generated mocker output filename, by default it's <source_file>_mock_gen.go")
 	genCmd.Flags().Bool("force", false, "Force create the file if it is already exist")
 
 	rootCmd.AddCommand(genCmd)
@@ -134,7 +134,7 @@ func parseOutputFile(cmd *cobra.Command, sourceFile string) (string, error) {
 	if outputFile == "" {
 		outputFile = path.Join(
 			path.Dir(sourceFile),
-			strings.TrimSuffix(path.Base(sourceFile), path.Ext(sourceFile))+"_mock.go",
+			strings.TrimSuffix(path.Base(sourceFile), path.Ext(sourceFile))+"_mock_gen.go",
 		)
 	}
 	return outputFile, nil

@@ -1,6 +1,7 @@
 package gomocker
 
 import (
+	"fmt"
 	"go/ast"
 
 	"github.com/dave/jennifer/jen"
@@ -16,6 +17,10 @@ type interfaceMockerGenerator struct {
 }
 
 func (s *interfaceMockerGenerator) generate() (jen.Code, error) {
+	if s.interfaceType.Methods == nil {
+		return nil, fmt.Errorf("cannot mock an empty interface")
+	}
+
 	nMethod := s.interfaceType.Methods.NumFields()
 	for _, method := range s.interfaceType.Methods.List {
 		s.funcMockedGenerators = append(s.funcMockedGenerators, &funcMockerGenerator{

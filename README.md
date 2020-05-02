@@ -25,7 +25,7 @@ type Math interface {
 
 3. Run `go generate ./...`
 
-4. A file called `math_mock.go` containing all the code to mock `Math` interface will be generated.
+4. A file called `math_mock_gen.go` containing all the code to mock `Math` interface will be generated.
 
 5. Use the mocker
 
