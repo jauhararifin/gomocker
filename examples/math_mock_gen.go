@@ -28,21 +28,23 @@ func NewMockedMath() (*MockedMath, *MathMocker) {
 	return &MockedMath{m}, m
 }
 
+type Math_AddInvocation struct {
+	Inputs struct {
+		Ctx context.Context
+		A   int
+		B   int
+	}
+	Outputs struct {
+		Sum int
+		Err error
+	}
+}
+
 type Math_AddMocker struct {
 	mux         sync.Mutex
 	handlers    []func(context.Context, int, int) (int, error)
 	lifetimes   []int
-	invocations []struct {
-		Inputs struct {
-			Ctx context.Context
-			A   int
-			B   int
-		}
-		Outputs struct {
-			Sum int
-			Err error
-		}
-	}
+	invocations []Math_AddInvocation
 }
 
 func (m *Math_AddMocker) Mock(nTimes int, f func(ctx context.Context, a int, b int) (sum int, err error)) {
@@ -118,46 +120,16 @@ func (m *Math_AddMocker) Call(ctx context.Context, a int, b int) (sum int, err e
 		Sum int
 		Err error
 	}{sum, err}
-	invoc := struct {
-		Inputs struct {
-			Ctx context.Context
-			A   int
-			B   int
-		}
-		Outputs struct {
-			Sum int
-			Err error
-		}
-	}{input, output}
+	invoc := Math_AddInvocation{input, output}
 	m.invocations = append(m.invocations, invoc)
 	return sum, err
 }
 
-func (m *Math_AddMocker) Invocations() []struct {
-	Inputs struct {
-		Ctx context.Context
-		A   int
-		B   int
-	}
-	Outputs struct {
-		Sum int
-		Err error
-	}
-} {
+func (m *Math_AddMocker) Invocations() []Math_AddInvocation {
 	return m.invocations
 }
 
-func (m *Math_AddMocker) TakeOneInvocation() struct {
-	Inputs struct {
-		Ctx context.Context
-		A   int
-		B   int
-	}
-	Outputs struct {
-		Sum int
-		Err error
-	}
-} {
+func (m *Math_AddMocker) TakeOneInvocation() Math_AddInvocation {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if len(m.invocations) == 0 {
@@ -168,21 +140,23 @@ func (m *Math_AddMocker) TakeOneInvocation() struct {
 	return invoc
 }
 
+type Math_SubtractInvocation struct {
+	Inputs struct {
+		Ctx context.Context
+		A   int
+		B   int
+	}
+	Outputs struct {
+		Result int
+		Err    error
+	}
+}
+
 type Math_SubtractMocker struct {
 	mux         sync.Mutex
 	handlers    []func(context.Context, int, int) (int, error)
 	lifetimes   []int
-	invocations []struct {
-		Inputs struct {
-			Ctx context.Context
-			A   int
-			B   int
-		}
-		Outputs struct {
-			Result int
-			Err    error
-		}
-	}
+	invocations []Math_SubtractInvocation
 }
 
 func (m *Math_SubtractMocker) Mock(nTimes int, f func(ctx context.Context, a int, b int) (result int, err error)) {
@@ -258,46 +232,16 @@ func (m *Math_SubtractMocker) Call(ctx context.Context, a int, b int) (result in
 		Result int
 		Err    error
 	}{result, err}
-	invoc := struct {
-		Inputs struct {
-			Ctx context.Context
-			A   int
-			B   int
-		}
-		Outputs struct {
-			Result int
-			Err    error
-		}
-	}{input, output}
+	invoc := Math_SubtractInvocation{input, output}
 	m.invocations = append(m.invocations, invoc)
 	return result, err
 }
 
-func (m *Math_SubtractMocker) Invocations() []struct {
-	Inputs struct {
-		Ctx context.Context
-		A   int
-		B   int
-	}
-	Outputs struct {
-		Result int
-		Err    error
-	}
-} {
+func (m *Math_SubtractMocker) Invocations() []Math_SubtractInvocation {
 	return m.invocations
 }
 
-func (m *Math_SubtractMocker) TakeOneInvocation() struct {
-	Inputs struct {
-		Ctx context.Context
-		A   int
-		B   int
-	}
-	Outputs struct {
-		Result int
-		Err    error
-	}
-} {
+func (m *Math_SubtractMocker) TakeOneInvocation() Math_SubtractInvocation {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if len(m.invocations) == 0 {

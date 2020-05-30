@@ -21,18 +21,20 @@ func NewMockedAggregator() (*MockedAggregator, *AggregatorMocker) {
 	return &MockedAggregator{m}, m
 }
 
+type Aggregator_SumIntInvocation struct {
+	Inputs struct {
+		Vals []int
+	}
+	Outputs struct {
+		Out1 int
+	}
+}
+
 type Aggregator_SumIntMocker struct {
 	mux         sync.Mutex
 	handlers    []func(...int) int
 	lifetimes   []int
-	invocations []struct {
-		Inputs struct {
-			Vals []int
-		}
-		Outputs struct {
-			Out1 int
-		}
-	}
+	invocations []Aggregator_SumIntInvocation
 }
 
 func (m *Aggregator_SumIntMocker) Mock(nTimes int, f func(vals ...int) (out1 int)) {
@@ -104,37 +106,16 @@ func (m *Aggregator_SumIntMocker) Call(vals ...int) (out1 int) {
 	output := struct {
 		Out1 int
 	}{out1}
-	invoc := struct {
-		Inputs struct {
-			Vals []int
-		}
-		Outputs struct {
-			Out1 int
-		}
-	}{input, output}
+	invoc := Aggregator_SumIntInvocation{input, output}
 	m.invocations = append(m.invocations, invoc)
 	return out1
 }
 
-func (m *Aggregator_SumIntMocker) Invocations() []struct {
-	Inputs struct {
-		Vals []int
-	}
-	Outputs struct {
-		Out1 int
-	}
-} {
+func (m *Aggregator_SumIntMocker) Invocations() []Aggregator_SumIntInvocation {
 	return m.invocations
 }
 
-func (m *Aggregator_SumIntMocker) TakeOneInvocation() struct {
-	Inputs struct {
-		Vals []int
-	}
-	Outputs struct {
-		Out1 int
-	}
-} {
+func (m *Aggregator_SumIntMocker) TakeOneInvocation() Aggregator_SumIntInvocation {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if len(m.invocations) == 0 {

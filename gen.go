@@ -56,11 +56,7 @@ func GenerateMocker(r io.Reader, names []string, w io.Writer, options ...Generat
 	file := createCodeGenFile(option, fileAst)
 
 	for _, name := range names {
-		code, err := generateEntityMockerByName(option, fileAst, name)
-		if err != nil {
-			return err
-		}
-		file.Add(code).Line().Line()
+		file.Add(generateEntityMockerByName(option, fileAst, name)).Line().Line()
 	}
 
 	return file.Render(w)
@@ -102,33 +98,25 @@ func generateEntityMockerByName(
 	option *generateMockerOption,
 	fileAst *ast.File,
 	name string,
-) (jen.Code, error) {
+) jen.Code {
 	typ := TypeFromAstName(fileAst, name)
 
 	if typ.FuncType != nil {
-		code, err := generateFunctionMocker(name, *typ.FuncType, option.funcMockerNamer)
-		if err != nil {
-			return nil, err
-		}
-		return code, nil
+		return generateFunctionMocker(name, *typ.FuncType, option.funcMockerNamer)
 	}
 
 	if typ.InterfaceType != nil {
-		code, err := generateInterfaceMocker(name, *typ.InterfaceType, option.funcMockerNamer, option.interfaceMockerNamer)
-		if err != nil {
-			return nil, err
-		}
-		return code, nil
+		return generateInterfaceMocker(name, *typ.InterfaceType, option.funcMockerNamer, option.interfaceMockerNamer)
 	}
 
-	return nil, fmt.Errorf("only supported interface and function")
+	panic(fmt.Errorf("only supported interface and function"))
 }
 
 func generateFunctionMocker(
 	funcName string,
 	funcType FuncType,
 	mockerNamer FuncMockerNamer,
-) (jen.Code, error) {
+) jen.Code {
 	funcMockerGenerator := funcMockerGenerator{
 		funcName:        funcName,
 		funcType:        funcType,
@@ -143,7 +131,7 @@ func generateInterfaceMocker(
 	interfaceType InterfaceType,
 	funcMockerNamer FuncMockerNamer,
 	interfaceMockerNamer InterfaceMockerNamer,
-) (jen.Code, error) {
+) jen.Code {
 	generator := &interfaceMockerGenerator{
 		interfaceName:        interfaceName,
 		interfaceType:        interfaceType,

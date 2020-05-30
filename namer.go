@@ -8,6 +8,7 @@ import (
 type FuncMockerNamer interface {
 	MockerName(identifier string) string
 	ConstructorName(identifier string) string
+	InvocationName(identifier string) string
 	ArgumentName(i int, originalArgName string, needPublic bool, isReturnArgument bool) string
 }
 
@@ -26,6 +27,10 @@ func (*defaultFuncMockerNamer) MockerName(typeName string) string {
 
 func (*defaultFuncMockerNamer) ConstructorName(typeName string) string {
 	return "NewMocked" + strings.Title(typeName)
+}
+
+func (*defaultFuncMockerNamer) InvocationName(typeName string) string {
+	return strings.Title(typeName) + "Invocation"
 }
 
 func (*defaultFuncMockerNamer) ArgumentName(i int, name string, needPublic bool, isReturnArgument bool) string {

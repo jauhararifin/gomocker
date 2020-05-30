@@ -7,21 +7,23 @@ import (
 	"sync"
 )
 
+type AddFuncInvocation struct {
+	Inputs struct {
+		Ctx context.Context
+		A   int
+		B   int
+	}
+	Outputs struct {
+		Sum int
+		Err error
+	}
+}
+
 type AddFuncMocker struct {
 	mux         sync.Mutex
 	handlers    []func(context.Context, int, int) (int, error)
 	lifetimes   []int
-	invocations []struct {
-		Inputs struct {
-			Ctx context.Context
-			A   int
-			B   int
-		}
-		Outputs struct {
-			Sum int
-			Err error
-		}
-	}
+	invocations []AddFuncInvocation
 }
 
 func (m *AddFuncMocker) Mock(nTimes int, f func(ctx context.Context, a int, b int) (sum int, err error)) {
@@ -97,46 +99,16 @@ func (m *AddFuncMocker) Call(ctx context.Context, a int, b int) (sum int, err er
 		Sum int
 		Err error
 	}{sum, err}
-	invoc := struct {
-		Inputs struct {
-			Ctx context.Context
-			A   int
-			B   int
-		}
-		Outputs struct {
-			Sum int
-			Err error
-		}
-	}{input, output}
+	invoc := AddFuncInvocation{input, output}
 	m.invocations = append(m.invocations, invoc)
 	return sum, err
 }
 
-func (m *AddFuncMocker) Invocations() []struct {
-	Inputs struct {
-		Ctx context.Context
-		A   int
-		B   int
-	}
-	Outputs struct {
-		Sum int
-		Err error
-	}
-} {
+func (m *AddFuncMocker) Invocations() []AddFuncInvocation {
 	return m.invocations
 }
 
-func (m *AddFuncMocker) TakeOneInvocation() struct {
-	Inputs struct {
-		Ctx context.Context
-		A   int
-		B   int
-	}
-	Outputs struct {
-		Sum int
-		Err error
-	}
-} {
+func (m *AddFuncMocker) TakeOneInvocation() AddFuncInvocation {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if len(m.invocations) == 0 {

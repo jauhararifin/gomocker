@@ -73,16 +73,12 @@ func maxUint8(a, b uint8) uint8 {
 	return b
 }
 
-type stepFunc func() (jen.Code, error)
+type stepFunc func() (jen.Code, )
 
-func concatSteps(steps ...stepFunc) (jen.Code, error) {
+func concatSteps(steps ...stepFunc) jen.Code {
 	j := jen.Empty()
 	for _, step := range steps {
-		code, err := step()
-		if err != nil {
-			return nil, err
-		}
-		j.Add(code).Line().Line()
+		j.Add(step()).Line().Line()
 	}
-	return j, nil
+	return j
 }

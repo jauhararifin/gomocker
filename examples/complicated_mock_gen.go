@@ -103,6 +103,65 @@ func NewMockedComplicated() (*MockedComplicated, *ComplicatedMocker) {
 	return &MockedComplicated{m}, m
 }
 
+type Complicated_MethodAInvocation struct {
+	Inputs struct {
+		Ctx    context.Context
+		Param1 interface {
+			Param1Method1(...int) (int, error)
+			Param1Method2(func(int, int, ...int) error) (int, error)
+		}
+		Param2 []struct {
+			A func(context.Context, struct {
+				A int
+				B int
+				C int
+				D func() interface {
+					A() error
+				}
+				E func() interface {
+					A() error
+				}
+				F func() interface {
+					A() error
+				}
+			})
+			B func(context.Context, struct {
+				A int
+				B int
+				C int
+				D func() interface {
+					A() error
+				}
+				E func() interface {
+					A() error
+				}
+				F func() interface {
+					A() error
+				}
+			})
+			C func(context.Context, struct {
+				A int
+				B int
+				C int
+				D func() interface {
+					A() error
+				}
+				E func() interface {
+					A() error
+				}
+				F func() interface {
+					A() error
+				}
+			})
+		}
+	}
+	Outputs struct {
+		Out1 int
+		Out2 int
+		Out3 []int
+	}
+}
+
 type Complicated_MethodAMocker struct {
 	mux      sync.Mutex
 	handlers []func(context.Context, interface {
@@ -153,64 +212,7 @@ type Complicated_MethodAMocker struct {
 		})
 	}) (int, int, []int)
 	lifetimes   []int
-	invocations []struct {
-		Inputs struct {
-			Ctx    context.Context
-			Param1 interface {
-				Param1Method1(...int) (int, error)
-				Param1Method2(func(int, int, ...int) error) (int, error)
-			}
-			Param2 []struct {
-				A func(context.Context, struct {
-					A int
-					B int
-					C int
-					D func() interface {
-						A() error
-					}
-					E func() interface {
-						A() error
-					}
-					F func() interface {
-						A() error
-					}
-				})
-				B func(context.Context, struct {
-					A int
-					B int
-					C int
-					D func() interface {
-						A() error
-					}
-					E func() interface {
-						A() error
-					}
-					F func() interface {
-						A() error
-					}
-				})
-				C func(context.Context, struct {
-					A int
-					B int
-					C int
-					D func() interface {
-						A() error
-					}
-					E func() interface {
-						A() error
-					}
-					F func() interface {
-						A() error
-					}
-				})
-			}
-		}
-		Outputs struct {
-			Out1 int
-			Out2 int
-			Out3 []int
-		}
-	}
+	invocations []Complicated_MethodAInvocation
 }
 
 func (m *Complicated_MethodAMocker) Mock(nTimes int, f func(ctx context.Context, param1 interface {
@@ -564,187 +566,16 @@ func (m *Complicated_MethodAMocker) Call(ctx context.Context, param1 interface {
 		Out2 int
 		Out3 []int
 	}{out1, out2, out3}
-	invoc := struct {
-		Inputs struct {
-			Ctx    context.Context
-			Param1 interface {
-				Param1Method1(...int) (int, error)
-				Param1Method2(func(int, int, ...int) error) (int, error)
-			}
-			Param2 []struct {
-				A func(context.Context, struct {
-					A int
-					B int
-					C int
-					D func() interface {
-						A() error
-					}
-					E func() interface {
-						A() error
-					}
-					F func() interface {
-						A() error
-					}
-				})
-				B func(context.Context, struct {
-					A int
-					B int
-					C int
-					D func() interface {
-						A() error
-					}
-					E func() interface {
-						A() error
-					}
-					F func() interface {
-						A() error
-					}
-				})
-				C func(context.Context, struct {
-					A int
-					B int
-					C int
-					D func() interface {
-						A() error
-					}
-					E func() interface {
-						A() error
-					}
-					F func() interface {
-						A() error
-					}
-				})
-			}
-		}
-		Outputs struct {
-			Out1 int
-			Out2 int
-			Out3 []int
-		}
-	}{input, output}
+	invoc := Complicated_MethodAInvocation{input, output}
 	m.invocations = append(m.invocations, invoc)
 	return out1, out2, out3
 }
 
-func (m *Complicated_MethodAMocker) Invocations() []struct {
-	Inputs struct {
-		Ctx    context.Context
-		Param1 interface {
-			Param1Method1(...int) (int, error)
-			Param1Method2(func(int, int, ...int) error) (int, error)
-		}
-		Param2 []struct {
-			A func(context.Context, struct {
-				A int
-				B int
-				C int
-				D func() interface {
-					A() error
-				}
-				E func() interface {
-					A() error
-				}
-				F func() interface {
-					A() error
-				}
-			})
-			B func(context.Context, struct {
-				A int
-				B int
-				C int
-				D func() interface {
-					A() error
-				}
-				E func() interface {
-					A() error
-				}
-				F func() interface {
-					A() error
-				}
-			})
-			C func(context.Context, struct {
-				A int
-				B int
-				C int
-				D func() interface {
-					A() error
-				}
-				E func() interface {
-					A() error
-				}
-				F func() interface {
-					A() error
-				}
-			})
-		}
-	}
-	Outputs struct {
-		Out1 int
-		Out2 int
-		Out3 []int
-	}
-} {
+func (m *Complicated_MethodAMocker) Invocations() []Complicated_MethodAInvocation {
 	return m.invocations
 }
 
-func (m *Complicated_MethodAMocker) TakeOneInvocation() struct {
-	Inputs struct {
-		Ctx    context.Context
-		Param1 interface {
-			Param1Method1(...int) (int, error)
-			Param1Method2(func(int, int, ...int) error) (int, error)
-		}
-		Param2 []struct {
-			A func(context.Context, struct {
-				A int
-				B int
-				C int
-				D func() interface {
-					A() error
-				}
-				E func() interface {
-					A() error
-				}
-				F func() interface {
-					A() error
-				}
-			})
-			B func(context.Context, struct {
-				A int
-				B int
-				C int
-				D func() interface {
-					A() error
-				}
-				E func() interface {
-					A() error
-				}
-				F func() interface {
-					A() error
-				}
-			})
-			C func(context.Context, struct {
-				A int
-				B int
-				C int
-				D func() interface {
-					A() error
-				}
-				E func() interface {
-					A() error
-				}
-				F func() interface {
-					A() error
-				}
-			})
-		}
-	}
-	Outputs struct {
-		Out1 int
-		Out2 int
-		Out3 []int
-	}
-} {
+func (m *Complicated_MethodAMocker) TakeOneInvocation() Complicated_MethodAInvocation {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if len(m.invocations) == 0 {
@@ -753,6 +584,52 @@ func (m *Complicated_MethodAMocker) TakeOneInvocation() struct {
 	invoc := m.invocations[0]
 	m.invocations = m.invocations[1:]
 	return invoc
+}
+
+type Complicated_MethodBInvocation struct {
+	Inputs struct {
+		Arg1 chan int
+		Arg2 <-chan int
+		Arg3 chan<- int
+		Arg4 []int
+		Arg5 [10]int
+		Arg6 map[int]struct{}
+		Arg7 map[int]string
+		Arg8 map[int]struct {
+			A int
+			B int
+			C int
+			D func() interface {
+				A() error
+			}
+			E func() interface {
+				A() error
+			}
+			F func() interface {
+				A() error
+			}
+		}
+	}
+	Outputs struct {
+		Out1 interface {
+			Param1Method1(...int) (int, error)
+			Param1Method2(func(int, int, ...int) error) (int, error)
+		}
+		Out2 struct {
+			A int
+			B int
+			C int
+			D func() interface {
+				A() error
+			}
+			E func() interface {
+				A() error
+			}
+			F func() interface {
+				A() error
+			}
+		}
+	}
 }
 
 type Complicated_MethodBMocker struct {
@@ -788,51 +665,7 @@ type Complicated_MethodBMocker struct {
 		}
 	})
 	lifetimes   []int
-	invocations []struct {
-		Inputs struct {
-			Arg1 chan int
-			Arg2 <-chan int
-			Arg3 chan<- int
-			Arg4 []int
-			Arg5 [10]int
-			Arg6 map[int]struct{}
-			Arg7 map[int]string
-			Arg8 map[int]struct {
-				A int
-				B int
-				C int
-				D func() interface {
-					A() error
-				}
-				E func() interface {
-					A() error
-				}
-				F func() interface {
-					A() error
-				}
-			}
-		}
-		Outputs struct {
-			Out1 interface {
-				Param1Method1(...int) (int, error)
-				Param1Method2(func(int, int, ...int) error) (int, error)
-			}
-			Out2 struct {
-				A int
-				B int
-				C int
-				D func() interface {
-					A() error
-				}
-				E func() interface {
-					A() error
-				}
-				F func() interface {
-					A() error
-				}
-			}
-		}
-	}
+	invocations []Complicated_MethodBInvocation
 }
 
 func (m *Complicated_MethodBMocker) Mock(nTimes int, f func(arg1 chan int, arg2 <-chan int, arg3 chan<- int, arg4 []int, arg5 [10]int, arg6 map[int]struct{}, arg7 map[int]string, arg8 map[int]struct {
@@ -1151,148 +984,16 @@ func (m *Complicated_MethodBMocker) Call(arg1 chan int, arg2 <-chan int, arg3 ch
 			}
 		}
 	}{out1, out2}
-	invoc := struct {
-		Inputs struct {
-			Arg1 chan int
-			Arg2 <-chan int
-			Arg3 chan<- int
-			Arg4 []int
-			Arg5 [10]int
-			Arg6 map[int]struct{}
-			Arg7 map[int]string
-			Arg8 map[int]struct {
-				A int
-				B int
-				C int
-				D func() interface {
-					A() error
-				}
-				E func() interface {
-					A() error
-				}
-				F func() interface {
-					A() error
-				}
-			}
-		}
-		Outputs struct {
-			Out1 interface {
-				Param1Method1(...int) (int, error)
-				Param1Method2(func(int, int, ...int) error) (int, error)
-			}
-			Out2 struct {
-				A int
-				B int
-				C int
-				D func() interface {
-					A() error
-				}
-				E func() interface {
-					A() error
-				}
-				F func() interface {
-					A() error
-				}
-			}
-		}
-	}{input, output}
+	invoc := Complicated_MethodBInvocation{input, output}
 	m.invocations = append(m.invocations, invoc)
 	return out1, out2
 }
 
-func (m *Complicated_MethodBMocker) Invocations() []struct {
-	Inputs struct {
-		Arg1 chan int
-		Arg2 <-chan int
-		Arg3 chan<- int
-		Arg4 []int
-		Arg5 [10]int
-		Arg6 map[int]struct{}
-		Arg7 map[int]string
-		Arg8 map[int]struct {
-			A int
-			B int
-			C int
-			D func() interface {
-				A() error
-			}
-			E func() interface {
-				A() error
-			}
-			F func() interface {
-				A() error
-			}
-		}
-	}
-	Outputs struct {
-		Out1 interface {
-			Param1Method1(...int) (int, error)
-			Param1Method2(func(int, int, ...int) error) (int, error)
-		}
-		Out2 struct {
-			A int
-			B int
-			C int
-			D func() interface {
-				A() error
-			}
-			E func() interface {
-				A() error
-			}
-			F func() interface {
-				A() error
-			}
-		}
-	}
-} {
+func (m *Complicated_MethodBMocker) Invocations() []Complicated_MethodBInvocation {
 	return m.invocations
 }
 
-func (m *Complicated_MethodBMocker) TakeOneInvocation() struct {
-	Inputs struct {
-		Arg1 chan int
-		Arg2 <-chan int
-		Arg3 chan<- int
-		Arg4 []int
-		Arg5 [10]int
-		Arg6 map[int]struct{}
-		Arg7 map[int]string
-		Arg8 map[int]struct {
-			A int
-			B int
-			C int
-			D func() interface {
-				A() error
-			}
-			E func() interface {
-				A() error
-			}
-			F func() interface {
-				A() error
-			}
-		}
-	}
-	Outputs struct {
-		Out1 interface {
-			Param1Method1(...int) (int, error)
-			Param1Method2(func(int, int, ...int) error) (int, error)
-		}
-		Out2 struct {
-			A int
-			B int
-			C int
-			D func() interface {
-				A() error
-			}
-			E func() interface {
-				A() error
-			}
-			F func() interface {
-				A() error
-			}
-		}
-	}
-} {
+func (m *Complicated_MethodBMocker) TakeOneInvocation() Complicated_MethodBInvocation {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if len(m.invocations) == 0 {
