@@ -35,6 +35,7 @@ func (s *interfaceMockerGeneratorHelper) generate() jen.Code {
 	}
 
 	for _, method := range s.interfaceType.Methods {
+		// TODO (jauhararifin): maybe can make the funcMockerGeneratorHelper more modular
 		s.funcMockedGenerators = append(s.funcMockedGenerators, &funcMockerGeneratorHelper{
 			funcName:        s.getFuncAlias(method.Name),
 			funcType:        method.Func,

@@ -76,7 +76,7 @@ func (m *AddFuncMocker) MockDefaultsForever() {
 	m.MockDefaults(0)
 }
 
-func (m *AddFuncMocker) Call(ctx context.Context, a int, b int) (sum int, err error) {
+func (m *AddFuncMocker) Call(ctx context.Context, a int, b int) (int, error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if len(m.handlers) == 0 {
@@ -89,7 +89,7 @@ func (m *AddFuncMocker) Call(ctx context.Context, a int, b int) (sum int, err er
 	} else if m.lifetimes[0] > 1 {
 		m.lifetimes[0]--
 	}
-	out1, out2 = handler(ctx, a, b)
+	out1, out2 := handler(ctx, a, b)
 	input := struct {
 		Ctx context.Context
 		A   int

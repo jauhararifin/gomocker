@@ -300,7 +300,7 @@ func (f *funcMockerGeneratorHelper) generateCallMethod() jen.Code {
 		Params(jen.Id("m").Op("*").Id(f.getMockerStructName())).
 		Id("Call").
 		Params(f.generateInputParamSignature(true)...).
-		Params(f.generateOutputParamSignature(true)...)
+		Params(f.generateOutputParamSignature(false)...)
 
 	body := f.generateLockUnlock()
 
@@ -323,7 +323,7 @@ func (f *funcMockerGeneratorHelper) generateCallMethod() jen.Code {
 	if hasOutput := len(f.funcType.Outputs) > 0; hasOutput {
 		body = append(
 			body,
-			jen.List(f.generateOutputList(false)...).Op("=").Id("handler").Call(f.generateInputList(true)...),
+			jen.List(f.generateOutputList(false)...).Op(":=").Id("handler").Call(f.generateInputList(true)...),
 		)
 	} else {
 		body = append(body, jen.Id("handler").Call(f.generateInputList(true)...))

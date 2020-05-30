@@ -86,7 +86,7 @@ func (m *Aggregator_SumIntMocker) MockDefaultsForever() {
 	m.MockDefaults(0)
 }
 
-func (m *Aggregator_SumIntMocker) Call(vals ...int) (out1 int) {
+func (m *Aggregator_SumIntMocker) Call(vals ...int) int {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if len(m.handlers) == 0 {
@@ -99,7 +99,7 @@ func (m *Aggregator_SumIntMocker) Call(vals ...int) (out1 int) {
 	} else if m.lifetimes[0] > 1 {
 		m.lifetimes[0]--
 	}
-	out1 = handler(vals...)
+	out1 := handler(vals...)
 	input := struct {
 		Vals []int
 	}{vals}

@@ -496,7 +496,7 @@ func (m *Complicated_MethodAMocker) Call(ctx context.Context, param1 interface {
 			A() (out1 error)
 		})
 	})
-}) (out1 int, out2 int, out3 []int) {
+}) (int, int, []int) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if len(m.handlers) == 0 {
@@ -509,7 +509,7 @@ func (m *Complicated_MethodAMocker) Call(ctx context.Context, param1 interface {
 	} else if m.lifetimes[0] > 1 {
 		m.lifetimes[0]--
 	}
-	out1, out2, out3 = handler(ctx, param1, param2...)
+	out1, out2, out3 := handler(ctx, param1, param2...)
 	input := struct {
 		Ctx    context.Context
 		Param1 interface {
@@ -911,10 +911,10 @@ func (m *Complicated_MethodBMocker) Call(arg1 chan int, arg2 <-chan int, arg3 ch
 	F func() (out1 interface {
 		A() (out1 error)
 	})
-}) (out1 interface {
+}) (interface {
 	Param1Method1(arg1 ...int) (out1 int, out2 error)
 	Param1Method2(arg1 func(arg1 int, arg2 int, arg3 ...int) (out1 error)) (out1 int, out2 error)
-}, out2 struct {
+}, struct {
 	A int
 	B int
 	C int
@@ -940,7 +940,7 @@ func (m *Complicated_MethodBMocker) Call(arg1 chan int, arg2 <-chan int, arg3 ch
 	} else if m.lifetimes[0] > 1 {
 		m.lifetimes[0]--
 	}
-	out1, out2 = handler(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
+	out1, out2 := handler(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
 	input := struct {
 		Arg1 chan int
 		Arg2 <-chan int
