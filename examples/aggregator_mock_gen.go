@@ -23,7 +23,7 @@ func NewMockedAggregator() (*MockedAggregator, *AggregatorMocker) {
 
 type Aggregator_SumIntMocker struct {
 	mux         sync.Mutex
-	handlers    []func(vals ...int) int
+	handlers    []func(...int) int
 	lifetimes   []int
 	invocations []struct {
 		Inputs struct {
@@ -35,7 +35,7 @@ type Aggregator_SumIntMocker struct {
 	}
 }
 
-func (m *Aggregator_SumIntMocker) Mock(nTimes int, f func(vals ...int) int) {
+func (m *Aggregator_SumIntMocker) Mock(nTimes int, f func(vals ...int) (out1 int)) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	nHandler := len(m.lifetimes)
@@ -49,16 +49,16 @@ func (m *Aggregator_SumIntMocker) Mock(nTimes int, f func(vals ...int) int) {
 	m.lifetimes = append(m.lifetimes, nTimes)
 }
 
-func (m *Aggregator_SumIntMocker) MockOnce(f func(vals ...int) int) {
+func (m *Aggregator_SumIntMocker) MockOnce(f func(vals ...int) (out1 int)) {
 	m.Mock(1, f)
 }
 
-func (m *Aggregator_SumIntMocker) MockForever(f func(vals ...int) int) {
+func (m *Aggregator_SumIntMocker) MockForever(f func(vals ...int) (out1 int)) {
 	m.Mock(0, f)
 }
 
 func (m *Aggregator_SumIntMocker) MockOutputs(nTimes int, out1 int) {
-	m.Mock(nTimes, func(vals ...int) int {
+	m.Mock(nTimes, func(...int) int {
 		return out1
 	})
 }

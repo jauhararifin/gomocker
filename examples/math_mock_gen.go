@@ -30,7 +30,7 @@ func NewMockedMath() (*MockedMath, *MathMocker) {
 
 type Math_AddMocker struct {
 	mux         sync.Mutex
-	handlers    []func(ctx context.Context, a int, b int) (sum int, err error)
+	handlers    []func(context.Context, int, int) (int, error)
 	lifetimes   []int
 	invocations []struct {
 		Inputs struct {
@@ -68,7 +68,7 @@ func (m *Math_AddMocker) MockForever(f func(ctx context.Context, a int, b int) (
 }
 
 func (m *Math_AddMocker) MockOutputs(nTimes int, sum int, err error) {
-	m.Mock(nTimes, func(ctx context.Context, a int, b int) (int, error) {
+	m.Mock(nTimes, func(context.Context, int, int) (int, error) {
 		return sum, err
 	})
 }
@@ -170,7 +170,7 @@ func (m *Math_AddMocker) TakeOneInvocation() struct {
 
 type Math_SubtractMocker struct {
 	mux         sync.Mutex
-	handlers    []func(ctx context.Context, a int, b int) (result int, err error)
+	handlers    []func(context.Context, int, int) (int, error)
 	lifetimes   []int
 	invocations []struct {
 		Inputs struct {
@@ -208,7 +208,7 @@ func (m *Math_SubtractMocker) MockForever(f func(ctx context.Context, a int, b i
 }
 
 func (m *Math_SubtractMocker) MockOutputs(nTimes int, result int, err error) {
-	m.Mock(nTimes, func(ctx context.Context, a int, b int) (int, error) {
+	m.Mock(nTimes, func(context.Context, int, int) (int, error) {
 		return result, err
 	})
 }

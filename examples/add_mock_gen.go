@@ -9,7 +9,7 @@ import (
 
 type AddFuncMocker struct {
 	mux         sync.Mutex
-	handlers    []func(ctx context.Context, a int, b int) (sum int, err error)
+	handlers    []func(context.Context, int, int) (int, error)
 	lifetimes   []int
 	invocations []struct {
 		Inputs struct {
@@ -47,7 +47,7 @@ func (m *AddFuncMocker) MockForever(f func(ctx context.Context, a int, b int) (s
 }
 
 func (m *AddFuncMocker) MockOutputs(nTimes int, sum int, err error) {
-	m.Mock(nTimes, func(ctx context.Context, a int, b int) (int, error) {
+	m.Mock(nTimes, func(context.Context, int, int) (int, error) {
 		return sum, err
 	})
 }
@@ -147,7 +147,7 @@ func (m *AddFuncMocker) TakeOneInvocation() struct {
 	return invoc
 }
 
-func NewMockedAddFunc() (func(ctx context.Context, a int, b int) (sum int, err error), *AddFuncMocker) {
+func NewMockedAddFunc() (func(context.Context, int, int) (int, error), *AddFuncMocker) {
 	m := &AddFuncMocker{}
 	return m.Call, m
 }

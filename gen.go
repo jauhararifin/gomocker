@@ -54,10 +54,9 @@ func GenerateMocker(r io.Reader, names []string, w io.Writer, options ...Generat
 	}
 
 	file := createCodeGenFile(option, fileAst)
-	exprCodeGen := newExprCodeGenerator(fileAst)
 
 	for _, name := range names {
-		code, err := generateEntityMockerByName(option, fileAst, exprCodeGen, name)
+		code, err := generateEntityMockerByName(option, fileAst, name)
 		if err != nil {
 			return err
 		}
@@ -102,24 +101,20 @@ func createCodeGenFile(option *generateMockerOption, fileAst *ast.File) *jen.Fil
 func generateEntityMockerByName(
 	option *generateMockerOption,
 	fileAst *ast.File,
-	exprCodeGen *exprCodeGenerator,
 	name string,
 ) (jen.Code, error) {
-	typ := getDeclarationByName(fileAst, name)
-	if typ == nil {
-		return nil, fmt.Errorf("cannot find function or interface %s", name)
-	}
+	typ := TypeFromAstName(fileAst, name)
 
-	if _, ok := typ.Type.(*ast.FuncType); ok {
-		code, err := generateFunctionMocker(typ, option.funcMockerNamer, exprCodeGen)
+	if typ.FuncType != nil {
+		code, err := generateFunctionMocker(name, *typ.FuncType, option.funcMockerNamer)
 		if err != nil {
 			return nil, err
 		}
 		return code, nil
 	}
 
-	if _, ok := typ.Type.(*ast.InterfaceType); ok {
-		code, err := generateInterfaceMocker(typ, option.funcMockerNamer, option.interfaceMockerNamer, exprCodeGen)
+	if typ.InterfaceType != nil {
+		code, err := generateInterfaceMocker(name, *typ.InterfaceType, option.funcMockerNamer, option.interfaceMockerNamer)
 		if err != nil {
 			return nil, err
 		}
@@ -129,60 +124,31 @@ func generateEntityMockerByName(
 	return nil, fmt.Errorf("only supported interface and function")
 }
 
-func getDeclarationByName(f *ast.File, name string) *ast.TypeSpec {
-	for _, decl := range f.Decls {
-		genDecl, ok := decl.(*ast.GenDecl)
-		if !ok {
-			continue
-		}
-
-		for _, spec := range genDecl.Specs {
-			typeSpec, ok := spec.(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-
-			if typeSpec.Name.String() != name {
-				continue
-			}
-
-			_, IsInterface := typeSpec.Type.(*ast.InterfaceType)
-			_, IsFunction := typeSpec.Type.(*ast.FuncType)
-			if IsInterface || IsFunction {
-				return typeSpec
-			}
-		}
-	}
-	return nil
-}
-
 func generateFunctionMocker(
-	funcType *ast.TypeSpec,
+	funcName string,
+	funcType FuncType,
 	mockerNamer FuncMockerNamer,
-	exprCodeGen *exprCodeGenerator,
 ) (jen.Code, error) {
 	funcMockerGenerator := funcMockerGenerator{
-		funcName:        funcType.Name.String(),
-		funcType:        funcType.Type.(*ast.FuncType),
+		funcName:        funcName,
+		funcType:        funcType,
 		mockerNamer:     mockerNamer,
 		withConstructor: true,
-		exprCodeGen:     exprCodeGen,
 	}
 	return funcMockerGenerator.generate()
 }
 
 func generateInterfaceMocker(
-	interfaceType *ast.TypeSpec,
+	interfaceName string,
+	interfaceType InterfaceType,
 	funcMockerNamer FuncMockerNamer,
 	interfaceMockerNamer InterfaceMockerNamer,
-	exprCodeGen *exprCodeGenerator,
 ) (jen.Code, error) {
 	generator := &interfaceMockerGenerator{
-		interfaceName:        interfaceType.Name.String(),
-		interfaceType:        interfaceType.Type.(*ast.InterfaceType),
+		interfaceName:        interfaceName,
+		interfaceType:        interfaceType,
 		funcMockerNamer:      funcMockerNamer,
 		interfaceMockerNamer: interfaceMockerNamer,
-		exprCodeGen:          exprCodeGen,
 	}
 	return generator.generate()
 }
