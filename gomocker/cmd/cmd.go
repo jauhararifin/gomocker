@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/jauhararifin/gomocker"
@@ -46,12 +47,12 @@ func executeGen(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	pkgName, err := cmd.Flags().GetString("package")
+	outputFile, err := parseOutputFile(cmd, sourceFile)
 	if err != nil {
 		return err
 	}
 
-	outputFile, err := parseOutputFile(cmd, sourceFile)
+	pkgName, err := parseOutputPkg(cmd, outputFile)
 	if err != nil {
 		return err
 	}
@@ -63,6 +64,19 @@ func executeGen(cmd *cobra.Command, args []string) error {
 
 	if len(args) == 0 {
 		return fmt.Errorf("please provide at least one function or interface you want to mock")
+	}
+
+	typeSpecs := make([]gomocker.TypeSpec, 0, len(args))
+	for _, arg := range args {
+		parts := strings.Split(arg, ":")
+		if len(parts) != 2 {
+			return fmt.Errorf("please provide a valid function or interface name. The format is <package-path>:<name>")
+		}
+
+		typeSpecs = append(typeSpecs, gomocker.TypeSpec{
+			Package: parts[0],
+			Name:    parts[1],
+		})
 	}
 
 	if _, err := os.Stat(outputFile); err == nil && !force {
@@ -78,8 +92,7 @@ func executeGen(cmd *cobra.Command, args []string) error {
 	defer file.Close()
 
 	if err := gomocker.GenerateMocker(
-		file,
-		args,
+		typeSpecs,
 		tempOutput,
 		gomocker.WithOutputPackagePath(pkgName),
 		gomocker.WithInputFileName(path.Base(sourceFile)),
@@ -113,6 +126,28 @@ func parseSourceFile(cmd *cobra.Command) (string, error) {
 		return "", fmt.Errorf("please provide .go file as the source file")
 	}
 	return sourceFile, nil
+}
+
+func parseOutputPkg(cmd *cobra.Command, outputFile string) (string, error) {
+	pkgName, err := cmd.Flags().GetString("package")
+	if err != nil {
+		return "", err
+	}
+	if pkgName != "" {
+		return pkgName, nil
+	}
+
+	pkg := filepath.Base(filepath.Dir(outputFile))
+	if pkg != "." {
+		return pkg, nil
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Base(wd), nil
 }
 
 func parseOutputFile(cmd *cobra.Command, sourceFile string) (string, error) {

@@ -2,7 +2,7 @@ package examples
 
 import "context"
 
-//go:generate gomocker gen --force Math
+//go:generate gomocker gen --force github.com/jauhararifin/gomocker/examples:Math
 
 type Math interface {
 	Add(ctx context.Context, a, b int) (sum int, err error)

@@ -1,28 +1,221 @@
 package gomocker
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/ioutil"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
+
+	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/module"
 )
 
 type astTypeGenerator struct{}
 
-func (f *astTypeGenerator) GenerateTypesFromAst(file *ast.File, names ...string) []Type {
-	importMap := f.generateImportMap(file)
+func (f *astTypeGenerator) GenerateTypesFromSpecs(typeSpecs ...TypeSpec) []Type {
+	specGroup := f.groupTypeSpecByPackage(typeSpecs)
 
-	types := make([]Type, 0, len(names))
-	for _, name := range names {
-		spec := f.getDeclarationByName(file, name)
-		if spec == nil {
-			panic(fmt.Errorf("definition not found: %v", name))
+	results := make(map[TypeSpec]Type)
+	for packageName, specs := range specGroup {
+		packageDir := f.findGoPackageDir(packageName)
+		types := f.generateTypesFromDir(packageDir, specs...)
+		for i, typ := range types {
+			results[TypeSpec{
+				Package: packageName,
+				Name:    specs[i],
+			}] = typ
 		}
-
-		types = append(types, f.generateTypeFromExpr(spec.Type, importMap))
 	}
 
-	return types
+	resultingTypes := make([]Type, 0, len(typeSpecs))
+	for _, spec := range typeSpecs {
+		resultingTypes = append(resultingTypes, results[spec])
+	}
+	return resultingTypes
+}
+
+func (f *astTypeGenerator) groupTypeSpecByPackage(typeSpecs []TypeSpec) map[string][]string {
+	result := make(map[string][]string)
+	for _, spec := range typeSpecs {
+		result[spec.Package] = append(result[spec.Package], spec.Name)
+	}
+	return result
+}
+
+func (f *astTypeGenerator) findGoPackageDir(packageName string) string {
+	goModFilePath := f.findGoModFile()
+
+	goModFile, err := os.Open(goModFilePath)
+	if err != nil {
+		panic(fmt.Errorf("cannot open go.mod file: %w", err))
+	}
+	defer goModFile.Close()
+
+	goModBytes, err := ioutil.ReadAll(goModFile)
+	if err != nil {
+		panic(fmt.Errorf("cannot read go.mod file: %w", err))
+	}
+
+	moduleFile, err := modfile.Parse("go.mod", goModBytes, nil)
+	if err != nil {
+		panic(fmt.Errorf("cannot parse go.mod file: %w", err))
+	}
+
+	if strings.HasPrefix(packageName, moduleFile.Module.Mod.Path) {
+		return filepath.Join(filepath.Dir(goModFilePath), packageName[len(moduleFile.Module.Mod.Path):])
+	}
+
+	for _, req := range moduleFile.Require {
+		if strings.HasPrefix(packageName, req.Mod.Path) {
+			modPath := f.findPackagePathByVersion(req.Mod)
+			return filepath.Join(filepath.Dir(modPath), packageName[len(moduleFile.Module.Mod.Path):])
+		}
+	}
+
+	panic(fmt.Errorf("package %s cannot be found in go.mod file", packageName))
+}
+
+func (f *astTypeGenerator) findGoModFile() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(fmt.Errorf("cannot get current working dir: %w", err))
+	}
+
+	maxDepth := 15
+	for i := 0; i < maxDepth; i++ {
+		goModPath := path.Join(wd, "go.mod")
+		if _, err := os.Stat(goModPath); errors.Is(err, os.ErrNotExist) {
+			if wd == "/" {
+				break
+			}
+			wd = path.Join(wd, "..")
+			continue
+		}
+
+		return goModPath
+	}
+
+	panic(fmt.Errorf("no go.mod file found"))
+}
+
+func (f *astTypeGenerator) findPackagePathByVersion(modVer module.Version) string {
+	lookupDir := make([]string, 0, 0)
+
+	if gohome, ok := os.LookupEnv("GOHOME"); ok {
+		lookupDir = append(lookupDir, filepath.Join(gohome, "pkg", "mod", modVer.Path+"@"+modVer.Version))
+	}
+
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		panic(fmt.Errorf("cannot get user home dir: %w", err))
+	}
+	lookupDir = append(lookupDir, filepath.Join(homedir, "go", "pkg", "mod", modVer.Path+"@"+modVer.Version))
+
+	for _, modulePath := range lookupDir {
+		if dir, ok := f.findPackagePathFromCandidatePath(modulePath); ok {
+			return dir
+		}
+	}
+
+	panic(fmt.Errorf("cannot find module %s", modVer.String()))
+}
+
+func (f *astTypeGenerator) findPackagePathFromCandidatePath(modulePath string) (string, bool) {
+	s, err := os.Stat(modulePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", false
+	}
+
+	if !s.IsDir() {
+		return "", false
+	}
+	return modulePath, true
+}
+
+func (f *astTypeGenerator) generateTypesFromDir(packageDir string, names ...string) []Type {
+	goSources := f.getGoFilesInsideDir(packageDir)
+
+	remainingNames := make(map[string]struct{})
+	for _, name := range names {
+		remainingNames[name] = struct{}{}
+	}
+
+	resultMap := make(map[string]Type)
+	for _, source := range goSources {
+		if len(remainingNames) == 0 {
+			break
+		}
+
+		fileAst := f.parseAstFile(source)
+		importMap := f.generateImportMap(fileAst)
+
+		for name := range remainingNames {
+			spec := f.getDeclarationByName(fileAst, name)
+			if spec != nil {
+				resultMap[name] = f.generateTypeFromExpr(spec.Type, importMap)
+				delete(remainingNames, name)
+			}
+		}
+	}
+
+	if len(remainingNames) != 0 {
+		// TODO (jauhararifin): give better error message
+		for name := range remainingNames {
+			panic(fmt.Errorf("cannot find definition of %s", name))
+		}
+	}
+
+	results := make([]Type, 0, len(names))
+	for _, name := range names {
+		results = append(results, resultMap[name])
+	}
+
+	return results
+}
+
+func (f *astTypeGenerator) getGoFilesInsideDir(dir string) []string {
+	goSources := make([]string, 0, 0)
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if path == dir {
+			return nil
+		}
+
+		if err != nil {
+			panic(fmt.Errorf("got error when listing file: %w", err))
+		}
+
+		if info.IsDir() {
+			return filepath.SkipDir
+		}
+
+		if filepath.Ext(info.Name()) == ".go" {
+			goSources = append(goSources, path)
+		}
+
+		return nil
+	})
+	return goSources
+}
+
+func (f *astTypeGenerator) parseAstFile(filename string) *ast.File {
+	file, err := os.Open(filename)
+	if err != nil {
+		panic(fmt.Errorf("cannot open file: %w", err))
+	}
+	defer file.Close()
+
+	fset := token.NewFileSet()
+	fileAst, err := parser.ParseFile(fset, filepath.Base(filename), file, 0)
+	if err != nil {
+		panic(fmt.Errorf("cannot parse go code: %w", err))
+	}
+	return fileAst
 }
 
 func (f *astTypeGenerator) generateImportMap(file *ast.File) map[string]string {

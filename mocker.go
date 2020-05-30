@@ -15,6 +15,6 @@ var defaultMockerGenerator = &mockerGenerator{
 	},
 }
 
-func GenerateMocker(r io.Reader, names []string, w io.Writer, options ...GenerateMockerOption) error {
-	return defaultMockerGenerator.GenerateMocker(r, names, w, options...)
+func GenerateMocker(typeSpecs []TypeSpec, w io.Writer, options ...GenerateMockerOption) error {
+	return defaultMockerGenerator.GenerateMocker(typeSpecs, w, options...)
 }

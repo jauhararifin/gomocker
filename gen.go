@@ -2,9 +2,6 @@ package gomocker
 
 import (
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"io"
 
 	"github.com/dave/jennifer/jen"
@@ -29,9 +26,14 @@ func WithOutputPackagePath(outputPackagePath string) GenerateMockerOption {
 	}
 }
 
+type TypeSpec struct {
+	Package string
+	Name    string
+}
+
 type mockerGenerator struct {
 	astTypeGenerator interface {
-		GenerateTypesFromAst(file *ast.File, names ...string) []Type
+		GenerateTypesFromSpecs(spec ...TypeSpec) []Type
 	}
 	funcMockerGenerator interface {
 		GenerateFunctionMocker(
@@ -49,23 +51,16 @@ type mockerGenerator struct {
 }
 
 func (m *mockerGenerator) GenerateMocker(
-	r io.Reader,
-	names []string,
+	specs []TypeSpec,
 	w io.Writer,
 	options ...GenerateMockerOption,
 ) error {
 	option := m.initOption(options...)
 
-	fileAst, err := m.parseSourceFile(option, r)
-	if err != nil {
-		return err
-	}
-
-	file := m.createCodeGenFile(option, fileAst)
-
-	types := m.astTypeGenerator.GenerateTypesFromAst(fileAst, names...)
+	file := m.createCodeGenFile(option)
+	types := m.astTypeGenerator.GenerateTypesFromSpecs(specs...)
 	for i, typ := range types {
-		file.Add(m.generateEntityMockerByName(option, typ, names[i])).Line().Line()
+		file.Add(m.generateEntityMockerByName(option, typ, specs[i].Name)).Line().Line()
 	}
 
 	return file.Render(w)
@@ -81,18 +76,9 @@ func (m *mockerGenerator) initOption(options ...GenerateMockerOption) *generateM
 	return option
 }
 
-func (m *mockerGenerator) parseSourceFile(option *generateMockerOption, r io.Reader) (*ast.File, error) {
-	fset := token.NewFileSet()
-	fileAst, err := parser.ParseFile(fset, option.inputFileName, r, 0)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse go code: %w", err)
-	}
-	return fileAst, nil
-}
-
-func (m *mockerGenerator) createCodeGenFile(option *generateMockerOption, fileAst *ast.File) *jen.File {
-	outputPackagePath := fileAst.Name.String()
-	if len(option.outputPackagePath) > 0 {
+func (m *mockerGenerator) createCodeGenFile(option *generateMockerOption) *jen.File {
+	outputPackagePath := "mock"
+	if option.outputPackagePath != "" {
 		outputPackagePath = option.outputPackagePath
 	}
 	file := jen.NewFilePath(outputPackagePath)

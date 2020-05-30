@@ -2,7 +2,7 @@ package examples
 
 import "context"
 
-//go:generate gomocker gen Complicated --force
+//go:generate gomocker gen github.com/jauhararifin/gomocker/examples:Complicated --force
 
 type Complicated interface {
 	MethodA(ctx context.Context, param1 interface {
