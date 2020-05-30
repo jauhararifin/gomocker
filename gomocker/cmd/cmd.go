@@ -68,15 +68,19 @@ func executeGen(cmd *cobra.Command, args []string) error {
 
 	typeSpecs := make([]gomocker.TypeSpec, 0, len(args))
 	for _, arg := range args {
+		// TODO (jauhar.arifin): use current package if pargs[0] is missing
 		parts := strings.Split(arg, ":")
 		if len(parts) != 2 {
-			return fmt.Errorf("please provide a valid function or interface name. The format is <package-path>:<name>")
+			return fmt.Errorf("please provide a valid function or interface name. The format is <package-path>:<name1>,<name2>,...")
 		}
 
-		typeSpecs = append(typeSpecs, gomocker.TypeSpec{
-			Package: parts[0],
-			Name:    parts[1],
-		})
+		names := strings.Split(parts[1], ",")
+		for _, name := range names {
+			typeSpecs = append(typeSpecs, gomocker.TypeSpec{
+				Package: parts[0],
+				Name:    name,
+			})
+		}
 	}
 
 	if _, err := os.Stat(outputFile); err == nil && !force {

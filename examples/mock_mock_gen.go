@@ -7,6 +7,245 @@ import (
 	"sync"
 )
 
+type AddFuncInvocation struct {
+	Inputs struct {
+		Ctx context.Context
+		A   int
+		B   int
+	}
+	Outputs struct {
+		Sum int
+		Err error
+	}
+}
+
+type AddFuncMocker struct {
+	mux         sync.Mutex
+	handlers    []func(context.Context, int, int) (int, error)
+	lifetimes   []int
+	invocations []AddFuncInvocation
+}
+
+func (m *AddFuncMocker) Mock(nTimes int, f func(ctx context.Context, a int, b int) (sum int, err error)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("AddFuncMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("AddFuncMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *AddFuncMocker) MockOnce(f func(ctx context.Context, a int, b int) (sum int, err error)) {
+	m.Mock(1, f)
+}
+
+func (m *AddFuncMocker) MockForever(f func(ctx context.Context, a int, b int) (sum int, err error)) {
+	m.Mock(0, f)
+}
+
+func (m *AddFuncMocker) MockOutputs(nTimes int, sum int, err error) {
+	m.Mock(nTimes, func(context.Context, int, int) (int, error) {
+		return sum, err
+	})
+}
+
+func (m *AddFuncMocker) MockOutputsOnce(sum int, err error) {
+	m.MockOutputs(1, sum, err)
+}
+
+func (m *AddFuncMocker) MockOutputsForever(sum int, err error) {
+	m.MockOutputs(0, sum, err)
+}
+
+func (m *AddFuncMocker) MockDefaults(nTimes int) {
+	var out1 int
+	var out2 error
+	m.MockOutputs(nTimes, out1, out2)
+}
+
+func (m *AddFuncMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *AddFuncMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *AddFuncMocker) Call(ctx context.Context, a int, b int) (int, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("AddFuncMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	out1, out2 := handler(ctx, a, b)
+	input := struct {
+		Ctx context.Context
+		A   int
+		B   int
+	}{ctx, a, b}
+	output := struct {
+		Sum int
+		Err error
+	}{out1, out2}
+	invoc := AddFuncInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return out1, out2
+}
+
+func (m *AddFuncMocker) Invocations() []AddFuncInvocation {
+	return m.invocations
+}
+
+func (m *AddFuncMocker) TakeOneInvocation() AddFuncInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("AddFuncMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
+func NewMockedAddFunc() (func(context.Context, int, int) (int, error), *AddFuncMocker) {
+	m := &AddFuncMocker{}
+	return m.Call, m
+}
+
+type AggregatorMocker struct {
+	SumInt *Aggregator_SumIntMocker
+}
+
+type MockedAggregator struct {
+	mocker *AggregatorMocker
+}
+
+func (m *MockedAggregator) SumInt(vals ...int) (out1 int) {
+	return m.mocker.SumInt.Call(vals...)
+}
+
+func NewMockedAggregator() (*MockedAggregator, *AggregatorMocker) {
+	m := &AggregatorMocker{SumInt: &Aggregator_SumIntMocker{}}
+	return &MockedAggregator{m}, m
+}
+
+type Aggregator_SumIntInvocation struct {
+	Inputs struct {
+		Vals []int
+	}
+	Outputs struct {
+		Out1 int
+	}
+}
+
+type Aggregator_SumIntMocker struct {
+	mux         sync.Mutex
+	handlers    []func(...int) int
+	lifetimes   []int
+	invocations []Aggregator_SumIntInvocation
+}
+
+func (m *Aggregator_SumIntMocker) Mock(nTimes int, f func(vals ...int) (out1 int)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("Aggregator_SumIntMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("Aggregator_SumIntMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *Aggregator_SumIntMocker) MockOnce(f func(vals ...int) (out1 int)) {
+	m.Mock(1, f)
+}
+
+func (m *Aggregator_SumIntMocker) MockForever(f func(vals ...int) (out1 int)) {
+	m.Mock(0, f)
+}
+
+func (m *Aggregator_SumIntMocker) MockOutputs(nTimes int, out1 int) {
+	m.Mock(nTimes, func(...int) int {
+		return out1
+	})
+}
+
+func (m *Aggregator_SumIntMocker) MockOutputsOnce(out1 int) {
+	m.MockOutputs(1, out1)
+}
+
+func (m *Aggregator_SumIntMocker) MockOutputsForever(out1 int) {
+	m.MockOutputs(0, out1)
+}
+
+func (m *Aggregator_SumIntMocker) MockDefaults(nTimes int) {
+	var out1 int
+	m.MockOutputs(nTimes, out1)
+}
+
+func (m *Aggregator_SumIntMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *Aggregator_SumIntMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *Aggregator_SumIntMocker) Call(vals ...int) int {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("Aggregator_SumIntMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	out1 := handler(vals...)
+	input := struct {
+		Vals []int
+	}{vals}
+	output := struct {
+		Out1 int
+	}{out1}
+	invoc := Aggregator_SumIntInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return out1
+}
+
+func (m *Aggregator_SumIntMocker) Invocations() []Aggregator_SumIntInvocation {
+	return m.invocations
+}
+
+func (m *Aggregator_SumIntMocker) TakeOneInvocation() Aggregator_SumIntInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("Aggregator_SumIntMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
 type ComplicatedMocker struct {
 	MethodA *Complicated_MethodAMocker
 	MethodB *Complicated_MethodBMocker
@@ -998,6 +1237,251 @@ func (m *Complicated_MethodBMocker) TakeOneInvocation() Complicated_MethodBInvoc
 	defer m.mux.Unlock()
 	if len(m.invocations) == 0 {
 		panic("Complicated_MethodBMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
+type MathMocker struct {
+	Add      *Math_AddMocker
+	Subtract *Math_SubtractMocker
+}
+
+type MockedMath struct {
+	mocker *MathMocker
+}
+
+func (m *MockedMath) Add(ctx context.Context, a int, b int) (sum int, err error) {
+	return m.mocker.Add.Call(ctx, a, b)
+}
+func (m *MockedMath) Subtract(ctx context.Context, a int, b int) (result int, err error) {
+	return m.mocker.Subtract.Call(ctx, a, b)
+}
+
+func NewMockedMath() (*MockedMath, *MathMocker) {
+	m := &MathMocker{Add: &Math_AddMocker{}, Subtract: &Math_SubtractMocker{}}
+	return &MockedMath{m}, m
+}
+
+type Math_AddInvocation struct {
+	Inputs struct {
+		Ctx context.Context
+		A   int
+		B   int
+	}
+	Outputs struct {
+		Sum int
+		Err error
+	}
+}
+
+type Math_AddMocker struct {
+	mux         sync.Mutex
+	handlers    []func(context.Context, int, int) (int, error)
+	lifetimes   []int
+	invocations []Math_AddInvocation
+}
+
+func (m *Math_AddMocker) Mock(nTimes int, f func(ctx context.Context, a int, b int) (sum int, err error)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("Math_AddMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("Math_AddMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *Math_AddMocker) MockOnce(f func(ctx context.Context, a int, b int) (sum int, err error)) {
+	m.Mock(1, f)
+}
+
+func (m *Math_AddMocker) MockForever(f func(ctx context.Context, a int, b int) (sum int, err error)) {
+	m.Mock(0, f)
+}
+
+func (m *Math_AddMocker) MockOutputs(nTimes int, sum int, err error) {
+	m.Mock(nTimes, func(context.Context, int, int) (int, error) {
+		return sum, err
+	})
+}
+
+func (m *Math_AddMocker) MockOutputsOnce(sum int, err error) {
+	m.MockOutputs(1, sum, err)
+}
+
+func (m *Math_AddMocker) MockOutputsForever(sum int, err error) {
+	m.MockOutputs(0, sum, err)
+}
+
+func (m *Math_AddMocker) MockDefaults(nTimes int) {
+	var out1 int
+	var out2 error
+	m.MockOutputs(nTimes, out1, out2)
+}
+
+func (m *Math_AddMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *Math_AddMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *Math_AddMocker) Call(ctx context.Context, a int, b int) (int, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("Math_AddMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	out1, out2 := handler(ctx, a, b)
+	input := struct {
+		Ctx context.Context
+		A   int
+		B   int
+	}{ctx, a, b}
+	output := struct {
+		Sum int
+		Err error
+	}{out1, out2}
+	invoc := Math_AddInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return out1, out2
+}
+
+func (m *Math_AddMocker) Invocations() []Math_AddInvocation {
+	return m.invocations
+}
+
+func (m *Math_AddMocker) TakeOneInvocation() Math_AddInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("Math_AddMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
+type Math_SubtractInvocation struct {
+	Inputs struct {
+		Ctx context.Context
+		A   int
+		B   int
+	}
+	Outputs struct {
+		Result int
+		Err    error
+	}
+}
+
+type Math_SubtractMocker struct {
+	mux         sync.Mutex
+	handlers    []func(context.Context, int, int) (int, error)
+	lifetimes   []int
+	invocations []Math_SubtractInvocation
+}
+
+func (m *Math_SubtractMocker) Mock(nTimes int, f func(ctx context.Context, a int, b int) (result int, err error)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("Math_SubtractMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("Math_SubtractMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *Math_SubtractMocker) MockOnce(f func(ctx context.Context, a int, b int) (result int, err error)) {
+	m.Mock(1, f)
+}
+
+func (m *Math_SubtractMocker) MockForever(f func(ctx context.Context, a int, b int) (result int, err error)) {
+	m.Mock(0, f)
+}
+
+func (m *Math_SubtractMocker) MockOutputs(nTimes int, result int, err error) {
+	m.Mock(nTimes, func(context.Context, int, int) (int, error) {
+		return result, err
+	})
+}
+
+func (m *Math_SubtractMocker) MockOutputsOnce(result int, err error) {
+	m.MockOutputs(1, result, err)
+}
+
+func (m *Math_SubtractMocker) MockOutputsForever(result int, err error) {
+	m.MockOutputs(0, result, err)
+}
+
+func (m *Math_SubtractMocker) MockDefaults(nTimes int) {
+	var out1 int
+	var out2 error
+	m.MockOutputs(nTimes, out1, out2)
+}
+
+func (m *Math_SubtractMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *Math_SubtractMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *Math_SubtractMocker) Call(ctx context.Context, a int, b int) (int, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("Math_SubtractMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	out1, out2 := handler(ctx, a, b)
+	input := struct {
+		Ctx context.Context
+		A   int
+		B   int
+	}{ctx, a, b}
+	output := struct {
+		Result int
+		Err    error
+	}{out1, out2}
+	invoc := Math_SubtractInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return out1, out2
+}
+
+func (m *Math_SubtractMocker) Invocations() []Math_SubtractInvocation {
+	return m.invocations
+}
+
+func (m *Math_SubtractMocker) TakeOneInvocation() Math_SubtractInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("Math_SubtractMocker: no invocations")
 	}
 	invoc := m.invocations[0]
 	m.invocations = m.invocations[1:]
