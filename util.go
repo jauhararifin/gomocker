@@ -6,6 +6,10 @@ import (
 	"github.com/dave/jennifer/jen"
 )
 
+func makePublic(varname string) string {
+	return strings.Title(varname)
+}
+
 func parseInt(s string) (int, bool) {
 	if len(s) == 0 {
 		return 0, false

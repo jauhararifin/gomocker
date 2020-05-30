@@ -84,9 +84,9 @@ func (m *Math_AddMocker) MockOutputsForever(sum int, err error) {
 }
 
 func (m *Math_AddMocker) MockDefaults(nTimes int) {
-	var sum int
-	var err error
-	m.MockOutputs(nTimes, sum, err)
+	var out1 int
+	var out2 error
+	m.MockOutputs(nTimes, out1, out2)
 }
 
 func (m *Math_AddMocker) MockDefaultsOnce() {
@@ -110,7 +110,7 @@ func (m *Math_AddMocker) Call(ctx context.Context, a int, b int) (sum int, err e
 	} else if m.lifetimes[0] > 1 {
 		m.lifetimes[0]--
 	}
-	sum, err = handler(ctx, a, b)
+	out1, out2 = handler(ctx, a, b)
 	input := struct {
 		Ctx context.Context
 		A   int
@@ -119,10 +119,10 @@ func (m *Math_AddMocker) Call(ctx context.Context, a int, b int) (sum int, err e
 	output := struct {
 		Sum int
 		Err error
-	}{sum, err}
+	}{out1, out2}
 	invoc := Math_AddInvocation{input, output}
 	m.invocations = append(m.invocations, invoc)
-	return sum, err
+	return out1, out2
 }
 
 func (m *Math_AddMocker) Invocations() []Math_AddInvocation {
@@ -196,9 +196,9 @@ func (m *Math_SubtractMocker) MockOutputsForever(result int, err error) {
 }
 
 func (m *Math_SubtractMocker) MockDefaults(nTimes int) {
-	var result int
-	var err error
-	m.MockOutputs(nTimes, result, err)
+	var out1 int
+	var out2 error
+	m.MockOutputs(nTimes, out1, out2)
 }
 
 func (m *Math_SubtractMocker) MockDefaultsOnce() {
@@ -222,7 +222,7 @@ func (m *Math_SubtractMocker) Call(ctx context.Context, a int, b int) (result in
 	} else if m.lifetimes[0] > 1 {
 		m.lifetimes[0]--
 	}
-	result, err = handler(ctx, a, b)
+	out1, out2 = handler(ctx, a, b)
 	input := struct {
 		Ctx context.Context
 		A   int
@@ -231,10 +231,10 @@ func (m *Math_SubtractMocker) Call(ctx context.Context, a int, b int) (result in
 	output := struct {
 		Result int
 		Err    error
-	}{result, err}
+	}{out1, out2}
 	invoc := Math_SubtractInvocation{input, output}
 	m.invocations = append(m.invocations, invoc)
-	return result, err
+	return out1, out2
 }
 
 func (m *Math_SubtractMocker) Invocations() []Math_SubtractInvocation {

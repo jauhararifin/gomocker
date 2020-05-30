@@ -7,20 +7,35 @@ import (
 )
 
 type interfaceMockerGenerator struct {
+	funcMockerNamer      FuncMockerNamer
+	interfaceMockerNamer InterfaceMockerNamer
+}
+
+func (f *interfaceMockerGenerator) GenerateInterfaceMocker(name string, interfaceType InterfaceType) jen.Code {
+	generator := &interfaceMockerGeneratorHelper{
+		interfaceName:        name,
+		interfaceType:        interfaceType,
+		funcMockerNamer:      f.funcMockerNamer,
+		interfaceMockerNamer: f.interfaceMockerNamer,
+	}
+	return generator.generate()
+}
+
+type interfaceMockerGeneratorHelper struct {
 	interfaceName        string
 	interfaceType        InterfaceType
 	interfaceMockerNamer InterfaceMockerNamer
 	funcMockerNamer      FuncMockerNamer
-	funcMockedGenerators []*funcMockerGenerator
+	funcMockedGenerators []*funcMockerGeneratorHelper
 }
 
-func (s *interfaceMockerGenerator) generate() jen.Code {
+func (s *interfaceMockerGeneratorHelper) generate() jen.Code {
 	if s.interfaceType.Methods == nil {
 		panic(fmt.Errorf("cannot mock an empty interface"))
 	}
 
 	for _, method := range s.interfaceType.Methods {
-		s.funcMockedGenerators = append(s.funcMockedGenerators, &funcMockerGenerator{
+		s.funcMockedGenerators = append(s.funcMockedGenerators, &funcMockerGeneratorHelper{
 			funcName:        s.getFuncAlias(method.Name),
 			funcType:        method.Func,
 			mockerNamer:     s.funcMockerNamer,
@@ -29,7 +44,7 @@ func (s *interfaceMockerGenerator) generate() jen.Code {
 	}
 
 	steps := []stepFunc{
-		s.generateServiceMockerStruct,
+		s.generateInterfaceMockerStruct,
 		s.generateMockedInterfaceStruct,
 		s.generateMockedInterfaceImpl,
 		s.generateInterfaceMockerConstructor,
@@ -41,7 +56,7 @@ func (s *interfaceMockerGenerator) generate() jen.Code {
 	return concatSteps(steps...)
 }
 
-func (s *interfaceMockerGenerator) generateServiceMockerStruct() jen.Code {
+func (s *interfaceMockerGeneratorHelper) generateInterfaceMockerStruct() jen.Code {
 	fields := make([]jen.Code, 0, len(s.interfaceType.Methods))
 	for _, method := range s.interfaceType.Methods {
 		methodName := method.Name
@@ -53,53 +68,54 @@ func (s *interfaceMockerGenerator) generateServiceMockerStruct() jen.Code {
 	return jen.Type().Id(s.getMockerStructName()).Struct(fields...)
 }
 
-func (s *interfaceMockerGenerator) getFuncAlias(funcName string) string {
+func (s *interfaceMockerGeneratorHelper) getFuncAlias(funcName string) string {
 	return s.interfaceMockerNamer.FunctionAliasName(s.interfaceName, funcName)
 }
 
-func (s *interfaceMockerGenerator) getMockerStructName() string {
+func (s *interfaceMockerGeneratorHelper) getMockerStructName() string {
 	return s.interfaceMockerNamer.MockerName(s.interfaceName)
 }
 
-func (s *interfaceMockerGenerator) generateMockedInterfaceStruct() jen.Code {
+func (s *interfaceMockerGeneratorHelper) generateMockedInterfaceStruct() jen.Code {
 	return jen.Type().Id(s.getMockedStructName()).Struct(jen.Id("mocker").Op("*").Id(s.getMockerStructName()))
 }
 
-func (s *interfaceMockerGenerator) getMockedStructName() string {
+func (s *interfaceMockerGeneratorHelper) getMockedStructName() string {
 	return s.interfaceMockerNamer.MockedName(s.interfaceName)
 }
 
-func (s *interfaceMockerGenerator) generateMockedInterfaceImpl() jen.Code {
-	impls := make([]jen.Code, 0, len(s.interfaceType.Methods))
-	for i, method := range s.interfaceType.Methods {
-		in, out := s.funcMockedGenerators[i].generateParamSignature(true, true)
-		_, inputsForCall, _ := s.funcMockedGenerators[i].generateParamList()
+func (s *interfaceMockerGeneratorHelper) generateMockedInterfaceImpl() jen.Code {
+	code := jen.Empty()
 
+	for i, method := range s.interfaceType.Methods {
 		methodName := method.Name
-		body := jen.Return(jen.Id("m").Dot("mocker").Dot(methodName).Dot("Call").Call(inputsForCall...))
-		if len(method.Func.Outputs) == 0 {
-			body = jen.Id("m").Dot("mocker").Dot(methodName).Dot("Call").Call(inputsForCall...)
+		impl := jen.Func().
+			Params(jen.Id("m").Op("*").Id(s.getMockedStructName())).
+			Id(methodName).
+			Params(s.funcMockedGenerators[i].generateInputParamSignature(true)...).
+			Params(s.funcMockedGenerators[i].generateOutputParamSignature(true)...)
+
+		if hasOutput := len(method.Func.Outputs) > 0; hasOutput {
+			impl.Block(
+				jen.Return(jen.Id("m").Dot("mocker").Dot(methodName).Dot("Call").Call(
+					s.funcMockedGenerators[i].generateInputList(true)...,
+				)),
+			)
+		} else {
+			impl.Block(
+				jen.Id("m").Dot("mocker").Dot(methodName).Dot("Call").Call(
+					s.funcMockedGenerators[i].generateInputList(true)...,
+				),
+			)
 		}
 
-		impls = append(
-			impls,
-			jen.Func().
-				Params(jen.Id("m").Op("*").Id(s.getMockedStructName())).
-				Id(methodName).
-				Params(in...).
-				Params(out...).
-				Block(body).Line(),
-		)
+		code.Add(impl).Line()
 	}
 
-	j := jen.Empty()
-	for _, impl := range impls {
-		j.Add(impl)
-	}
-	return j
+	return code.Line()
 }
 
-func (s *interfaceMockerGenerator) generateInterfaceMockerConstructor() jen.Code {
+func (s *interfaceMockerGeneratorHelper) generateInterfaceMockerConstructor() jen.Code {
 	values := make([]jen.Code, 0, 0)
 	for _, method := range s.interfaceType.Methods {
 		name := method.Name
@@ -122,6 +138,6 @@ func (s *interfaceMockerGenerator) generateInterfaceMockerConstructor() jen.Code
 		)
 }
 
-func (s *interfaceMockerGenerator) getConstructorName() string {
+func (s *interfaceMockerGeneratorHelper) getConstructorName() string {
 	return s.interfaceMockerNamer.ConstructorName(s.interfaceName)
 }

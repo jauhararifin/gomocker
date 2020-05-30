@@ -10,28 +10,12 @@ import (
 	"github.com/dave/jennifer/jen"
 )
 
-const gomockerPath = "github.com/jauhararifin/gomocker"
-
 type generateMockerOption struct {
-	funcMockerNamer      FuncMockerNamer
-	interfaceMockerNamer InterfaceMockerNamer
-	inputFileName        string
-	outputPackagePath    string
+	inputFileName     string
+	outputPackagePath string
 }
 
 type GenerateMockerOption func(option *generateMockerOption)
-
-func WithFuncMockerNamer(namer FuncMockerNamer) GenerateMockerOption {
-	return func(option *generateMockerOption) {
-		option.funcMockerNamer = namer
-	}
-}
-
-func WithInterfaceMockerNamer(namer InterfaceMockerNamer) GenerateMockerOption {
-	return func(option *generateMockerOption) {
-		option.interfaceMockerNamer = namer
-	}
-}
 
 func WithInputFileName(inputFileName string) GenerateMockerOption {
 	return func(option *generateMockerOption) {
@@ -45,28 +29,51 @@ func WithOutputPackagePath(outputPackagePath string) GenerateMockerOption {
 	}
 }
 
-func GenerateMocker(r io.Reader, names []string, w io.Writer, options ...GenerateMockerOption) error {
-	option := initOption(options...)
+type mockerGenerator struct {
+	astTypeGenerator interface {
+		GenerateTypesFromAst(file *ast.File, names ...string) []Type
+	}
+	funcMockerGenerator interface {
+		GenerateFunctionMocker(
+			name string,
+			funcType FuncType,
+			withConstructor bool,
+		) jen.Code
+	}
+	interfaceMockerGenerator interface {
+		GenerateInterfaceMocker(
+			name string,
+			interfaceType InterfaceType,
+		) jen.Code
+	}
+}
 
-	fileAst, err := parseSourceFile(option, r)
+func (m *mockerGenerator) GenerateMocker(
+	r io.Reader,
+	names []string,
+	w io.Writer,
+	options ...GenerateMockerOption,
+) error {
+	option := m.initOption(options...)
+
+	fileAst, err := m.parseSourceFile(option, r)
 	if err != nil {
 		return err
 	}
 
-	file := createCodeGenFile(option, fileAst)
+	file := m.createCodeGenFile(option, fileAst)
 
-	for _, name := range names {
-		file.Add(generateEntityMockerByName(option, fileAst, name)).Line().Line()
+	types := m.astTypeGenerator.GenerateTypesFromAst(fileAst, names...)
+	for i, typ := range types {
+		file.Add(m.generateEntityMockerByName(option, typ, names[i])).Line().Line()
 	}
 
 	return file.Render(w)
 }
 
-func initOption(options ...GenerateMockerOption) *generateMockerOption {
+func (m *mockerGenerator) initOption(options ...GenerateMockerOption) *generateMockerOption {
 	option := &generateMockerOption{
-		funcMockerNamer:      &defaultFuncMockerNamer{},
-		interfaceMockerNamer: &defaultInterfaceMockerNamer{},
-		inputFileName:        "dummyfile.go",
+		inputFileName: "dummyfile.go",
 	}
 	for _, opt := range options {
 		opt(option)
@@ -74,7 +81,7 @@ func initOption(options ...GenerateMockerOption) *generateMockerOption {
 	return option
 }
 
-func parseSourceFile(option *generateMockerOption, r io.Reader) (*ast.File, error) {
+func (m *mockerGenerator) parseSourceFile(option *generateMockerOption, r io.Reader) (*ast.File, error) {
 	fset := token.NewFileSet()
 	fileAst, err := parser.ParseFile(fset, option.inputFileName, r, 0)
 	if err != nil {
@@ -83,7 +90,7 @@ func parseSourceFile(option *generateMockerOption, r io.Reader) (*ast.File, erro
 	return fileAst, nil
 }
 
-func createCodeGenFile(option *generateMockerOption, fileAst *ast.File) *jen.File {
+func (m *mockerGenerator) createCodeGenFile(option *generateMockerOption, fileAst *ast.File) *jen.File {
 	outputPackagePath := fileAst.Name.String()
 	if len(option.outputPackagePath) > 0 {
 		outputPackagePath = option.outputPackagePath
@@ -94,30 +101,28 @@ func createCodeGenFile(option *generateMockerOption, fileAst *ast.File) *jen.Fil
 	return file
 }
 
-func generateEntityMockerByName(
+func (m *mockerGenerator) generateEntityMockerByName(
 	option *generateMockerOption,
-	fileAst *ast.File,
+	typ Type,
 	name string,
 ) jen.Code {
-	typ := TypeFromAstName(fileAst, name)
-
 	if typ.FuncType != nil {
-		return generateFunctionMocker(name, *typ.FuncType, option.funcMockerNamer)
+		return m.funcMockerGenerator.GenerateFunctionMocker(name, *typ.FuncType, true)
 	}
 
 	if typ.InterfaceType != nil {
-		return generateInterfaceMocker(name, *typ.InterfaceType, option.funcMockerNamer, option.interfaceMockerNamer)
+		return m.interfaceMockerGenerator.GenerateInterfaceMocker(name, *typ.InterfaceType)
 	}
 
 	panic(fmt.Errorf("only supported interface and function"))
 }
 
-func generateFunctionMocker(
+func (m *mockerGenerator) generateFunctionMocker(
 	funcName string,
 	funcType FuncType,
 	mockerNamer FuncMockerNamer,
 ) jen.Code {
-	funcMockerGenerator := funcMockerGenerator{
+	funcMockerGenerator := funcMockerGeneratorHelper{
 		funcName:        funcName,
 		funcType:        funcType,
 		mockerNamer:     mockerNamer,
@@ -126,13 +131,13 @@ func generateFunctionMocker(
 	return funcMockerGenerator.generate()
 }
 
-func generateInterfaceMocker(
+func (m *mockerGenerator) generateInterfaceMocker(
 	interfaceName string,
 	interfaceType InterfaceType,
 	funcMockerNamer FuncMockerNamer,
 	interfaceMockerNamer InterfaceMockerNamer,
 ) jen.Code {
-	generator := &interfaceMockerGenerator{
+	generator := &interfaceMockerGeneratorHelper{
 		interfaceName:        interfaceName,
 		interfaceType:        interfaceType,
 		funcMockerNamer:      funcMockerNamer,

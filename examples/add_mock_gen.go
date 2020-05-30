@@ -63,9 +63,9 @@ func (m *AddFuncMocker) MockOutputsForever(sum int, err error) {
 }
 
 func (m *AddFuncMocker) MockDefaults(nTimes int) {
-	var sum int
-	var err error
-	m.MockOutputs(nTimes, sum, err)
+	var out1 int
+	var out2 error
+	m.MockOutputs(nTimes, out1, out2)
 }
 
 func (m *AddFuncMocker) MockDefaultsOnce() {
@@ -89,7 +89,7 @@ func (m *AddFuncMocker) Call(ctx context.Context, a int, b int) (sum int, err er
 	} else if m.lifetimes[0] > 1 {
 		m.lifetimes[0]--
 	}
-	sum, err = handler(ctx, a, b)
+	out1, out2 = handler(ctx, a, b)
 	input := struct {
 		Ctx context.Context
 		A   int
@@ -98,10 +98,10 @@ func (m *AddFuncMocker) Call(ctx context.Context, a int, b int) (sum int, err er
 	output := struct {
 		Sum int
 		Err error
-	}{sum, err}
+	}{out1, out2}
 	invoc := AddFuncInvocation{input, output}
 	m.invocations = append(m.invocations, invoc)
-	return sum, err
+	return out1, out2
 }
 
 func (m *AddFuncMocker) Invocations() []AddFuncInvocation {

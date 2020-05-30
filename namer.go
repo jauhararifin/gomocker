@@ -22,15 +22,15 @@ type InterfaceMockerNamer interface {
 type defaultFuncMockerNamer struct{}
 
 func (*defaultFuncMockerNamer) MockerName(typeName string) string {
-	return strings.Title(typeName) + "Mocker"
+	return makePublic(typeName) + "Mocker"
 }
 
 func (*defaultFuncMockerNamer) ConstructorName(typeName string) string {
-	return "NewMocked" + strings.Title(typeName)
+	return "NewMocked" + makePublic(typeName)
 }
 
 func (*defaultFuncMockerNamer) InvocationName(typeName string) string {
-	return strings.Title(typeName) + "Invocation"
+	return makePublic(typeName) + "Invocation"
 }
 
 func (*defaultFuncMockerNamer) ArgumentName(i int, name string, needPublic bool, isReturnArgument bool) string {
@@ -53,17 +53,17 @@ func (*defaultFuncMockerNamer) ArgumentName(i int, name string, needPublic bool,
 type defaultInterfaceMockerNamer struct{}
 
 func (d *defaultInterfaceMockerNamer) MockerName(identifier string) string {
-	return strings.Title(identifier) + "Mocker"
+	return makePublic(identifier) + "Mocker"
 }
 
 func (d *defaultInterfaceMockerNamer) MockedName(identifier string) string {
-	return "Mocked" + strings.Title(identifier)
+	return "Mocked" + makePublic(identifier)
 }
 
 func (d *defaultInterfaceMockerNamer) ConstructorName(identifier string) string {
-	return "NewMocked" + strings.Title(identifier)
+	return "NewMocked" + makePublic(identifier)
 }
 
 func (d *defaultInterfaceMockerNamer) FunctionAliasName(identifier, functionName string) string {
-	return strings.Title(identifier) + "_" + strings.Title(functionName)
+	return makePublic(identifier) + "_" + makePublic(functionName)
 }

@@ -23,6 +23,7 @@ type PrimitiveKind string
 
 const (
 	PrimitiveKindBool       PrimitiveKind = "bool"
+	PrimitiveKindByte       PrimitiveKind = "byte"
 	PrimitiveKindInt        PrimitiveKind = "int"
 	PrimitiveKindInt8       PrimitiveKind = "int8"
 	PrimitiveKindInt16      PrimitiveKind = "int16"
@@ -129,6 +130,7 @@ func GenerateCode(typ Type, flag int32) jen.Code {
 }
 
 var (
+	DefaultFlag      int32 = 0
 	BareFunctionFlag int32 = 1
 )
 
@@ -162,6 +164,8 @@ func (c *typeCodeGenerator) generatePrimitiveType(primitiveType PrimitiveType, f
 	switch primitiveType.Kind {
 	case PrimitiveKindBool:
 		return jen.Bool()
+	case PrimitiveKindByte:
+		return jen.Byte()
 	case PrimitiveKindInt:
 		return jen.Int()
 	case PrimitiveKindInt8:

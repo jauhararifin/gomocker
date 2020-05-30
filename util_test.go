@@ -1,10 +1,8 @@
 package gomocker
 
 import (
-	"errors"
 	"testing"
 
-	"github.com/dave/jennifer/jen"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,49 +39,6 @@ func TestParseInt(t *testing.T) {
 			v, ok := parseInt(tc.number)
 			assert.Equal(t, tc.expected, v)
 			assert.Equal(t, tc.isValid, ok)
-		})
-	}
-}
-
-func TestConcatSteps(t *testing.T) {
-	errA := errors.New("error_a")
-	errB := errors.New("error_b")
-	testcases := []struct {
-		name          string
-		steps         []stepFunc
-		expectedValue jen.Code
-		expectedError error
-	}{{
-		name: "normal flow",
-		steps: []stepFunc{func() (code jen.Code, e error) {
-			return jen.Type().Id("struct1").Struct(), nil
-		}, func() (code jen.Code, e error) {
-			return jen.Type().Id("interface1").Interface(), nil
-		}, func() (code jen.Code, e error) {
-			return jen.Type().Id("func1").Func(), nil
-		}},
-		expectedValue: jen.Empty().Add(jen.Type().Id("struct1").Struct()).Line().Line().
-			Add(jen.Type().Id("interface1").Interface()).Line().Line().
-			Add(jen.Type().Id("func1").Func()).Line().Line(),
-		expectedError: nil,
-	}, {
-		name: "error flow",
-		steps: []stepFunc{func() (code jen.Code, e error) {
-			return jen.Type().Id("struct1").Struct(), nil
-		}, func() (code jen.Code, e error) {
-			return jen.Type().Id("interface1").Interface(), errA
-		}, func() (code jen.Code, e error) {
-			return jen.Type().Id("func1").Func(), errB
-		}},
-		expectedValue: nil,
-		expectedError: errA,
-	}}
-
-	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			code, err := concatSteps(tc.steps...)
-			assert.Equal(t, tc.expectedValue, code)
-			assert.Equal(t, tc.expectedError, err)
 		})
 	}
 }

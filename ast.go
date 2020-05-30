@@ -7,76 +7,99 @@ import (
 	"strings"
 )
 
-func TypeFromAstName(file *ast.File, name string) Type {
-	return (&astTypeGenerator{}).generateTypeFromAst(file, name)
-}
+type astTypeGenerator struct{}
 
-type astTypeGenerator struct {
-	importMap map[string]string
-}
+func (f *astTypeGenerator) GenerateTypesFromAst(file *ast.File, names ...string) []Type {
+	importMap := f.generateImportMap(file)
 
-func (f *astTypeGenerator) generateTypeFromAst(file *ast.File, name string) Type {
-	spec := f.getDeclarationByName(file, name)
-	if spec == nil {
-		panic(fmt.Errorf("definition not found: %v", name))
+	types := make([]Type, 0, len(names))
+	for _, name := range names {
+		spec := f.getDeclarationByName(file, name)
+		if spec == nil {
+			panic(fmt.Errorf("definition not found: %v", name))
+		}
+
+		types = append(types, f.generateTypeFromExpr(spec.Type, importMap))
 	}
 
-	exprCodeGen := newExprCodeGenerator(file)
-	return exprCodeGen.generateTypeFromExpr(spec.Type)
+	return types
+}
+
+func (f *astTypeGenerator) generateImportMap(file *ast.File) map[string]string {
+	importMap := make(map[string]string)
+	for _, decl := range file.Decls {
+		if genDecl, ok := decl.(*ast.GenDecl); ok {
+			for _, spec := range genDecl.Specs {
+				if importSpec, ok := spec.(*ast.ImportSpec); ok {
+					importPath := importSpec.Path.Value
+					importPath = strings.TrimPrefix(strings.TrimSuffix(importPath, "\""), "\"")
+
+					importName := f.getImportNameFromPackagePath(importPath)
+					if importSpec.Name != nil {
+						importName = importSpec.Name.String()
+					}
+
+					importMap[importName] = importPath
+				}
+			}
+		}
+	}
+	return importMap
+}
+
+func (f *astTypeGenerator) getImportNameFromPackagePath(packagePath string) string {
+	// TODO (jauhararifin): check the correctness of this
+	base := path.Base(packagePath)
+	if base == "" {
+		return ""
+	}
+	return strings.Split(base, ".")[0]
 }
 
 func (*astTypeGenerator) getDeclarationByName(f *ast.File, name string) *ast.TypeSpec {
 	for _, decl := range f.Decls {
-		genDecl, ok := decl.(*ast.GenDecl)
-		if !ok {
-			continue
-		}
-
-		for _, spec := range genDecl.Specs {
-			typeSpec, ok := spec.(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-
-			if typeSpec.Name.String() != name {
-				continue
-			}
-
-			_, IsInterface := typeSpec.Type.(*ast.InterfaceType)
-			_, IsFunction := typeSpec.Type.(*ast.FuncType)
-			if IsInterface || IsFunction {
-				return typeSpec
+		if genDecl, ok := decl.(*ast.GenDecl); ok {
+			for _, spec := range genDecl.Specs {
+				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+					if typeSpec.Name.String() == name {
+						_, IsInterface := typeSpec.Type.(*ast.InterfaceType)
+						_, IsFunction := typeSpec.Type.(*ast.FuncType)
+						if IsInterface || IsFunction {
+							return typeSpec
+						}
+					}
+				}
 			}
 		}
 	}
 	return nil
 }
 
-func (f *astTypeGenerator) generateTypeFromExpr(e ast.Expr) Type {
+func (f *astTypeGenerator) generateTypeFromExpr(e ast.Expr, importMap map[string]string) Type {
 	switch v := e.(type) {
 	case *ast.SelectorExpr:
-		return f.generateTypeFromSelectorExpr(v)
+		return f.generateTypeFromSelectorExpr(v, importMap)
 	case *ast.Ident:
 		return f.generateTypeFromIdent(v)
 	case *ast.StarExpr:
-		typ := f.generateTypeFromStarExpr(v)
+		typ := f.generateTypeFromStarExpr(v, importMap)
 		return Type{PtrType: &typ}
 	case *ast.ArrayType:
-		return f.generateTypeFromArrayType(v)
+		return f.generateTypeFromArrayType(v, importMap)
 	case *ast.FuncType:
-		typ := f.generateTypeFromFuncType(v)
+		typ := f.generateTypeFromFuncType(v, importMap)
 		return Type{FuncType: &typ}
 	case *ast.MapType:
-		typ := f.generateTypeFromMapType(v)
+		typ := f.generateTypeFromMapType(v, importMap)
 		return Type{MapType: &typ}
 	case *ast.ChanType:
-		typ := f.generateTypeFromChanType(v)
+		typ := f.generateTypeFromChanType(v, importMap)
 		return Type{ChanType: &typ}
 	case *ast.StructType:
-		typ := f.generateTypeFromStructType(v)
+		typ := f.generateTypeFromStructType(v, importMap)
 		return Type{StructType: &typ}
 	case *ast.InterfaceType:
-		typ := f.generateTypeFromInterfaceType(v)
+		typ := f.generateTypeFromInterfaceType(v, importMap)
 		return Type{InterfaceType: &typ}
 	}
 	panic(fmt.Errorf("unrecognized type: %v", e))
@@ -86,6 +109,8 @@ func (f *astTypeGenerator) generateTypeFromIdent(ident *ast.Ident) Type {
 	switch ident.Name {
 	case string(PrimitiveKindBool):
 		return Type{PrimitiveType: &PrimitiveType{Kind: PrimitiveKindBool}}
+	case string(PrimitiveKindByte):
+		return Type{PrimitiveType: &PrimitiveType{Kind: PrimitiveKindByte}}
 	case string(PrimitiveKindInt):
 		return Type{PrimitiveType: &PrimitiveType{Kind: PrimitiveKindInt}}
 	case string(PrimitiveKindInt8):
@@ -124,13 +149,16 @@ func (f *astTypeGenerator) generateTypeFromIdent(ident *ast.Ident) Type {
 	panic(fmt.Errorf("unrecognized type: %v", ident.Name))
 }
 
-func (f *astTypeGenerator) generateTypeFromSelectorExpr(selectorExpr *ast.SelectorExpr) Type {
+func (f *astTypeGenerator) generateTypeFromSelectorExpr(
+	selectorExpr *ast.SelectorExpr,
+	importMap map[string]string,
+) Type {
 	ident, ok := selectorExpr.X.(*ast.Ident)
 	if !ok {
 		panic(fmt.Errorf("unrecognized expr: %v", selectorExpr))
 	}
 
-	importPath, ok := f.importMap[ident.String()]
+	importPath, ok := importMap[ident.String()]
 	if !ok {
 		panic(fmt.Errorf("unrecognized identifier: %s", ident.String()))
 	}
@@ -140,13 +168,13 @@ func (f *astTypeGenerator) generateTypeFromSelectorExpr(selectorExpr *ast.Select
 	}}
 }
 
-func (f *astTypeGenerator) generateTypeFromStarExpr(starExpr *ast.StarExpr) PtrType {
-	return PtrType{Elem: f.generateTypeFromExpr(starExpr.X)}
+func (f *astTypeGenerator) generateTypeFromStarExpr(starExpr *ast.StarExpr, importMap map[string]string) PtrType {
+	return PtrType{Elem: f.generateTypeFromExpr(starExpr.X, importMap)}
 }
 
-func (f *astTypeGenerator) generateTypeFromArrayType(arrayType *ast.ArrayType) Type {
+func (f *astTypeGenerator) generateTypeFromArrayType(arrayType *ast.ArrayType, importMap map[string]string) Type {
 	if arrayType.Len == nil {
-		return Type{SliceType: &SliceType{Elem: f.generateTypeFromExpr(arrayType.Elt)}}
+		return Type{SliceType: &SliceType{Elem: f.generateTypeFromExpr(arrayType.Elt, importMap)}}
 	}
 
 	lit, ok := arrayType.Len.(*ast.BasicLit)
@@ -160,16 +188,24 @@ func (f *astTypeGenerator) generateTypeFromArrayType(arrayType *ast.ArrayType) T
 
 	return Type{ArrayType: &ArrayType{
 		Len:  lenn,
-		Elem: f.generateTypeFromExpr(arrayType.Elt),
+		Elem: f.generateTypeFromExpr(arrayType.Elt, importMap),
 	}}
 }
 
-func (f *astTypeGenerator) generateTypeFromFuncType(funcType *ast.FuncType) FuncType {
-	params, isVariadic := f.generateTypeFromFieldList(funcType.Params, f.getInputNamesFromAst(funcType.Params.List))
+func (f *astTypeGenerator) generateTypeFromFuncType(funcType *ast.FuncType, importMap map[string]string) FuncType {
+	params, isVariadic := f.generateTypeFromFieldList(
+		funcType.Params,
+		f.getInputNamesFromAst(funcType.Params.List),
+		importMap,
+	)
 
 	var results []TypeField = nil
 	if funcType.Results != nil {
-		results, _ = f.generateTypeFromFieldList(funcType.Results, f.getOutputNamesFromAst(funcType.Results.List))
+		results, _ = f.generateTypeFromFieldList(
+			funcType.Results,
+			f.getOutputNamesFromAst(funcType.Results.List),
+			importMap,
+		)
 	}
 	return FuncType{
 		Inputs:     params,
@@ -178,7 +214,11 @@ func (f *astTypeGenerator) generateTypeFromFuncType(funcType *ast.FuncType) Func
 	}
 }
 
-func (f *astTypeGenerator) generateTypeFromFieldList(fields *ast.FieldList, names []string) (types []TypeField, isVariadic bool) {
+func (f *astTypeGenerator) generateTypeFromFieldList(
+	fields *ast.FieldList,
+	names []string,
+	importMap map[string]string,
+) (types []TypeField, isVariadic bool) {
 	if fields == nil {
 		return nil, false
 	}
@@ -191,7 +231,7 @@ func (f *astTypeGenerator) generateTypeFromFieldList(fields *ast.FieldList, name
 			isVariadic = true
 			typExpr = v.Elt
 		}
-		typ := f.generateTypeFromExpr(typExpr)
+		typ := f.generateTypeFromExpr(typExpr, importMap)
 
 		if len(field.Names) == 0 {
 			types = append(types, TypeField{
@@ -242,17 +282,17 @@ func (f *astTypeGenerator) getNamesFromExpr(params []*ast.Field, prefix string) 
 	return names
 }
 
-func (f *astTypeGenerator) generateTypeFromMapType(mapType *ast.MapType) MapType {
-	keyDef := f.generateTypeFromExpr(mapType.Key)
-	valDef := f.generateTypeFromExpr(mapType.Value)
+func (f *astTypeGenerator) generateTypeFromMapType(mapType *ast.MapType, importMap map[string]string) MapType {
+	keyDef := f.generateTypeFromExpr(mapType.Key, importMap)
+	valDef := f.generateTypeFromExpr(mapType.Value, importMap)
 	return MapType{
 		Key:  keyDef,
 		Elem: valDef,
 	}
 }
 
-func (f *astTypeGenerator) generateTypeFromChanType(chanType *ast.ChanType) ChanType {
-	c := f.generateTypeFromExpr(chanType.Value)
+func (f *astTypeGenerator) generateTypeFromChanType(chanType *ast.ChanType, importMap map[string]string) ChanType {
+	c := f.generateTypeFromExpr(chanType.Value, importMap)
 
 	switch chanType.Dir {
 	case ast.RECV:
@@ -264,7 +304,10 @@ func (f *astTypeGenerator) generateTypeFromChanType(chanType *ast.ChanType) Chan
 	}
 }
 
-func (f *astTypeGenerator) generateTypeFromStructType(structType *ast.StructType) StructType {
+func (f *astTypeGenerator) generateTypeFromStructType(
+	structType *ast.StructType,
+	importMap map[string]string,
+) StructType {
 	if structType.Fields == nil {
 		return StructType{Fields: nil}
 	}
@@ -276,7 +319,7 @@ func (f *astTypeGenerator) generateTypeFromStructType(structType *ast.StructType
 				fields,
 				TypeField{
 					Name: name.String(),
-					Type: f.generateTypeFromExpr(field.Type),
+					Type: f.generateTypeFromExpr(field.Type, importMap),
 				},
 			)
 		}
@@ -285,7 +328,10 @@ func (f *astTypeGenerator) generateTypeFromStructType(structType *ast.StructType
 	return StructType{Fields: fields}
 }
 
-func (f *astTypeGenerator) generateTypeFromInterfaceType(interfaceType *ast.InterfaceType) InterfaceType {
+func (f *astTypeGenerator) generateTypeFromInterfaceType(
+	interfaceType *ast.InterfaceType,
+	importMap map[string]string,
+) InterfaceType {
 	if interfaceType.Methods == nil {
 		return InterfaceType{Methods: nil}
 	}
@@ -297,38 +343,9 @@ func (f *astTypeGenerator) generateTypeFromInterfaceType(interfaceType *ast.Inte
 		funcType := field.Type.(*ast.FuncType)
 		methods = append(methods, InterfaceTypeMethod{
 			Name: name,
-			Func: f.generateTypeFromFuncType(funcType),
+			Func: f.generateTypeFromFuncType(funcType, importMap),
 		})
 	}
 
 	return InterfaceType{Methods: methods}
-}
-
-func newExprCodeGenerator(f *ast.File) *astTypeGenerator {
-	importMap := make(map[string]string)
-	for _, decl := range f.Decls {
-		genDecl, ok := decl.(*ast.GenDecl)
-		if !ok {
-			continue
-		}
-
-		for _, spec := range genDecl.Specs {
-			importSpec, ok := spec.(*ast.ImportSpec)
-			if !ok {
-				continue
-			}
-
-			importPath := importSpec.Path.Value
-			importPath = strings.TrimPrefix(strings.TrimSuffix(importPath, "\""), "\"")
-
-			importName := path.Base(importPath)
-			if importSpec.Name != nil {
-				importName = importSpec.Name.String()
-			}
-
-			importMap[importName] = importPath
-		}
-	}
-
-	return &astTypeGenerator{importMap: importMap}
 }
