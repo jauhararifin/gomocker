@@ -77,8 +77,8 @@ func executeGen(cmd *cobra.Command, args []string) error {
 		names := strings.Split(parts[1], ",")
 		for _, name := range names {
 			typeSpecs = append(typeSpecs, gomocker.TypeSpec{
-				Package: parts[0],
-				Name:    name,
+				PackagePath: parts[0],
+				Name:        name,
 			})
 		}
 	}
@@ -133,6 +133,7 @@ func parseSourceFile(cmd *cobra.Command) (string, error) {
 }
 
 func parseOutputPkg(cmd *cobra.Command, outputFile string) (string, error) {
+	// TODO (jauhar.arifin): parse package name based on the output dir
 	pkgName, err := cmd.Flags().GetString("package")
 	if err != nil {
 		return "", err

@@ -19,36 +19,66 @@ import (
 type astTypeGenerator struct{}
 
 func (f *astTypeGenerator) GenerateTypesFromSpecs(typeSpecs ...TypeSpec) []Type {
-	specGroup := f.groupTypeSpecByPackage(typeSpecs)
+	packagePathToSpecs := f.groupTypeSpecByPackage(typeSpecs)
 
-	results := make(map[TypeSpec]Type)
-	for packageName, specs := range specGroup {
-		packageDir := f.findGoPackageDir(packageName)
-		types := f.generateTypesFromDir(packageDir, specs...)
-		for i, typ := range types {
-			results[TypeSpec{
-				Package: packageName,
-				Name:    specs[i],
-			}] = typ
+	resultMap := make(map[TypeSpec]Type)
+	for packagePath, specs := range packagePathToSpecs {
+		for i, typ := range f.generateTypesInSinglePackage(packagePath, specs...) {
+			resultMap[TypeSpec{PackagePath: packagePath, Name: specs[i]}] = typ
 		}
 	}
 
-	resultingTypes := make([]Type, 0, len(typeSpecs))
+	results := make([]Type, 0, len(typeSpecs))
 	for _, spec := range typeSpecs {
-		resultingTypes = append(resultingTypes, results[spec])
+		results = append(results, resultMap[spec])
 	}
-	return resultingTypes
+	return results
 }
 
 func (f *astTypeGenerator) groupTypeSpecByPackage(typeSpecs []TypeSpec) map[string][]string {
 	result := make(map[string][]string)
 	for _, spec := range typeSpecs {
-		result[spec.Package] = append(result[spec.Package], spec.Name)
+		result[spec.PackagePath] = append(result[spec.PackagePath], spec.Name)
 	}
 	return result
 }
 
-func (f *astTypeGenerator) findGoPackageDir(packageName string) string {
+func (f *astTypeGenerator) generateTypesInSinglePackage(packagePath string, names ...string) []Type {
+	packageDir := f.findGoPackageDir(packagePath)
+	types := f.generateTypesFromDir(packageDir, packagePath, names...)
+	results := make([]Type, 0, len(names))
+	for _, typ := range types {
+		results = append(results, typ)
+	}
+	return results
+}
+
+func (f *astTypeGenerator) findGoPackageDir(packagePath string) string {
+	moduleFile, goModFilePath := f.findModuleFile()
+	if packageDir, ok := f.findPackageDirByModulePath(
+		packagePath,
+		moduleFile.Module.Mod.Path,
+		filepath.Dir(goModFilePath),
+	); ok {
+		return packageDir
+	}
+
+	for _, req := range moduleFile.Require {
+		modPath := f.findPackagePathByVersion(req.Mod)
+		if packageDir, ok := f.findPackageDirByModulePath(packagePath, req.Mod.Path, modPath); ok {
+			return packageDir
+		}
+	}
+
+	modPath := f.findPackagePathByVersion(module.Version{})
+	if packageDir, ok := f.findPackageDirByModulePath(packagePath, "", modPath); ok {
+		return packageDir
+	}
+
+	panic(fmt.Errorf("package %s cannot be found in go.mod file", packagePath))
+}
+
+func (f *astTypeGenerator) findModuleFile() (*modfile.File, string) {
 	goModFilePath := f.findGoModFile()
 
 	goModFile, err := os.Open(goModFilePath)
@@ -67,18 +97,7 @@ func (f *astTypeGenerator) findGoPackageDir(packageName string) string {
 		panic(fmt.Errorf("cannot parse go.mod file: %w", err))
 	}
 
-	if strings.HasPrefix(packageName, moduleFile.Module.Mod.Path) {
-		return filepath.Join(filepath.Dir(goModFilePath), packageName[len(moduleFile.Module.Mod.Path):])
-	}
-
-	for _, req := range moduleFile.Require {
-		if strings.HasPrefix(packageName, req.Mod.Path) {
-			modPath := f.findPackagePathByVersion(req.Mod)
-			return filepath.Join(filepath.Dir(modPath), packageName[len(moduleFile.Module.Mod.Path):])
-		}
-	}
-
-	panic(fmt.Errorf("package %s cannot be found in go.mod file", packageName))
+	return moduleFile, goModFilePath
 }
 
 func (f *astTypeGenerator) findGoModFile() string {
@@ -104,6 +123,17 @@ func (f *astTypeGenerator) findGoModFile() string {
 	panic(fmt.Errorf("no go.mod file found"))
 }
 
+func (f *astTypeGenerator) findPackageDirByModulePath(
+	targetPackagePath,
+	modulePath,
+	moduleDir string,
+) (packageDir string, ok bool) {
+	if !strings.HasPrefix(targetPackagePath, modulePath) {
+		return "", false
+	}
+	return filepath.Join(moduleDir, targetPackagePath[len(modulePath):]), true
+}
+
 func (f *astTypeGenerator) findPackagePathByVersion(modVer module.Version) string {
 	lookupDir := make([]string, 0, 0)
 
@@ -111,11 +141,18 @@ func (f *astTypeGenerator) findPackagePathByVersion(modVer module.Version) strin
 		lookupDir = append(lookupDir, filepath.Join(gohome, "pkg", "mod", modVer.Path+"@"+modVer.Version))
 	}
 
+	// TODO (jauhar.arifin): this is for unix-based OS only
 	homedir, err := os.UserHomeDir()
 	if err != nil {
 		panic(fmt.Errorf("cannot get user home dir: %w", err))
 	}
 	lookupDir = append(lookupDir, filepath.Join(homedir, "go", "pkg", "mod", modVer.Path+"@"+modVer.Version))
+
+	lookupDir = append(lookupDir, filepath.Join("/", "usr", "local", "go", "src"))
+
+	if gohome, ok := os.LookupEnv("GOHOME"); ok {
+		lookupDir = append(lookupDir, filepath.Join(gohome, "src", "mod", modVer.Path+"@"+modVer.Version))
+	}
 
 	for _, modulePath := range lookupDir {
 		if dir, ok := f.findPackagePathFromCandidatePath(modulePath); ok {
@@ -138,7 +175,7 @@ func (f *astTypeGenerator) findPackagePathFromCandidatePath(modulePath string) (
 	return modulePath, true
 }
 
-func (f *astTypeGenerator) generateTypesFromDir(packageDir string, names ...string) []Type {
+func (f *astTypeGenerator) generateTypesFromDir(packageDir string, packagePath string, names ...string) []Type {
 	goSources := f.getGoFilesInsideDir(packageDir)
 
 	remainingNames := make(map[string]struct{})
@@ -158,7 +195,7 @@ func (f *astTypeGenerator) generateTypesFromDir(packageDir string, names ...stri
 		for name := range remainingNames {
 			spec := f.getDeclarationByName(fileAst, name)
 			if spec != nil {
-				resultMap[name] = f.generateTypeFromExpr(spec.Type, importMap)
+				resultMap[name] = f.generateTypeFromExpr(spec.Type, packagePath, importMap)
 				delete(remainingNames, name)
 			}
 		}
@@ -268,37 +305,37 @@ func (*astTypeGenerator) getDeclarationByName(f *ast.File, name string) *ast.Typ
 	return nil
 }
 
-func (f *astTypeGenerator) generateTypeFromExpr(e ast.Expr, importMap map[string]string) Type {
+func (f *astTypeGenerator) generateTypeFromExpr(e ast.Expr, targetPkgPath string, importMap map[string]string) Type {
 	switch v := e.(type) {
 	case *ast.SelectorExpr:
 		return f.generateTypeFromSelectorExpr(v, importMap)
 	case *ast.Ident:
-		return f.generateTypeFromIdent(v)
+		return f.generateTypeFromIdent(v, targetPkgPath)
 	case *ast.StarExpr:
-		typ := f.generateTypeFromStarExpr(v, importMap)
+		typ := f.generateTypeFromStarExpr(v, targetPkgPath, importMap)
 		return Type{PtrType: &typ}
 	case *ast.ArrayType:
-		return f.generateTypeFromArrayType(v, importMap)
+		return f.generateTypeFromArrayType(v, targetPkgPath, importMap)
 	case *ast.FuncType:
-		typ := f.generateTypeFromFuncType(v, importMap)
+		typ := f.generateTypeFromFuncType(v, targetPkgPath, importMap)
 		return Type{FuncType: &typ}
 	case *ast.MapType:
-		typ := f.generateTypeFromMapType(v, importMap)
+		typ := f.generateTypeFromMapType(v, targetPkgPath, importMap)
 		return Type{MapType: &typ}
 	case *ast.ChanType:
-		typ := f.generateTypeFromChanType(v, importMap)
+		typ := f.generateTypeFromChanType(v, targetPkgPath, importMap)
 		return Type{ChanType: &typ}
 	case *ast.StructType:
-		typ := f.generateTypeFromStructType(v, importMap)
+		typ := f.generateTypeFromStructType(v, targetPkgPath, importMap)
 		return Type{StructType: &typ}
 	case *ast.InterfaceType:
-		typ := f.generateTypeFromInterfaceType(v, importMap)
+		typ := f.generateTypeFromInterfaceType(v, targetPkgPath, importMap)
 		return Type{InterfaceType: &typ}
 	}
 	panic(fmt.Errorf("unrecognized type: %v", e))
 }
 
-func (f *astTypeGenerator) generateTypeFromIdent(ident *ast.Ident) Type {
+func (f *astTypeGenerator) generateTypeFromIdent(ident *ast.Ident, targetPackagePath string) Type {
 	switch ident.Name {
 	case string(PrimitiveKindBool):
 		return Type{PrimitiveType: &PrimitiveType{Kind: PrimitiveKindBool}}
@@ -339,7 +376,7 @@ func (f *astTypeGenerator) generateTypeFromIdent(ident *ast.Ident) Type {
 	case "error":
 		return Type{PrimitiveType: &PrimitiveType{Kind: PrimitiveKindError}}
 	}
-	panic(fmt.Errorf("unrecognized type: %v", ident.Name))
+	return Type{QualType: &QualType{Package: targetPackagePath, Name: ident.Name}}
 }
 
 func (f *astTypeGenerator) generateTypeFromSelectorExpr(
@@ -361,13 +398,21 @@ func (f *astTypeGenerator) generateTypeFromSelectorExpr(
 	}}
 }
 
-func (f *astTypeGenerator) generateTypeFromStarExpr(starExpr *ast.StarExpr, importMap map[string]string) PtrType {
-	return PtrType{Elem: f.generateTypeFromExpr(starExpr.X, importMap)}
+func (f *astTypeGenerator) generateTypeFromStarExpr(
+	starExpr *ast.StarExpr,
+	targetPackagePath string,
+	importMap map[string]string,
+) PtrType {
+	return PtrType{Elem: f.generateTypeFromExpr(starExpr.X, targetPackagePath, importMap)}
 }
 
-func (f *astTypeGenerator) generateTypeFromArrayType(arrayType *ast.ArrayType, importMap map[string]string) Type {
+func (f *astTypeGenerator) generateTypeFromArrayType(
+	arrayType *ast.ArrayType,
+	targetPackagePath string,
+	importMap map[string]string,
+) Type {
 	if arrayType.Len == nil {
-		return Type{SliceType: &SliceType{Elem: f.generateTypeFromExpr(arrayType.Elt, importMap)}}
+		return Type{SliceType: &SliceType{Elem: f.generateTypeFromExpr(arrayType.Elt, targetPackagePath, importMap)}}
 	}
 
 	lit, ok := arrayType.Len.(*ast.BasicLit)
@@ -381,14 +426,15 @@ func (f *astTypeGenerator) generateTypeFromArrayType(arrayType *ast.ArrayType, i
 
 	return Type{ArrayType: &ArrayType{
 		Len:  lenn,
-		Elem: f.generateTypeFromExpr(arrayType.Elt, importMap),
+		Elem: f.generateTypeFromExpr(arrayType.Elt, targetPackagePath, importMap),
 	}}
 }
 
-func (f *astTypeGenerator) generateTypeFromFuncType(funcType *ast.FuncType, importMap map[string]string) FuncType {
+func (f *astTypeGenerator) generateTypeFromFuncType(funcType *ast.FuncType, targetPackagePath string, importMap map[string]string) FuncType {
 	params, isVariadic := f.generateTypeFromFieldList(
 		funcType.Params,
 		f.getInputNamesFromAst(funcType.Params.List),
+		targetPackagePath,
 		importMap,
 	)
 
@@ -397,6 +443,7 @@ func (f *astTypeGenerator) generateTypeFromFuncType(funcType *ast.FuncType, impo
 		results, _ = f.generateTypeFromFieldList(
 			funcType.Results,
 			f.getOutputNamesFromAst(funcType.Results.List),
+			targetPackagePath,
 			importMap,
 		)
 	}
@@ -410,6 +457,7 @@ func (f *astTypeGenerator) generateTypeFromFuncType(funcType *ast.FuncType, impo
 func (f *astTypeGenerator) generateTypeFromFieldList(
 	fields *ast.FieldList,
 	names []string,
+	targetPackagePath string,
 	importMap map[string]string,
 ) (types []TypeField, isVariadic bool) {
 	if fields == nil {
@@ -424,7 +472,7 @@ func (f *astTypeGenerator) generateTypeFromFieldList(
 			isVariadic = true
 			typExpr = v.Elt
 		}
-		typ := f.generateTypeFromExpr(typExpr, importMap)
+		typ := f.generateTypeFromExpr(typExpr, targetPackagePath, importMap)
 
 		if len(field.Names) == 0 {
 			types = append(types, TypeField{
@@ -475,17 +523,25 @@ func (f *astTypeGenerator) getNamesFromExpr(params []*ast.Field, prefix string) 
 	return names
 }
 
-func (f *astTypeGenerator) generateTypeFromMapType(mapType *ast.MapType, importMap map[string]string) MapType {
-	keyDef := f.generateTypeFromExpr(mapType.Key, importMap)
-	valDef := f.generateTypeFromExpr(mapType.Value, importMap)
+func (f *astTypeGenerator) generateTypeFromMapType(
+	mapType *ast.MapType,
+	targetPackagePath string,
+	importMap map[string]string,
+) MapType {
+	keyDef := f.generateTypeFromExpr(mapType.Key, targetPackagePath, importMap)
+	valDef := f.generateTypeFromExpr(mapType.Value, targetPackagePath, importMap)
 	return MapType{
 		Key:  keyDef,
 		Elem: valDef,
 	}
 }
 
-func (f *astTypeGenerator) generateTypeFromChanType(chanType *ast.ChanType, importMap map[string]string) ChanType {
-	c := f.generateTypeFromExpr(chanType.Value, importMap)
+func (f *astTypeGenerator) generateTypeFromChanType(
+	chanType *ast.ChanType,
+	targetPackagePath string,
+	importMap map[string]string,
+) ChanType {
+	c := f.generateTypeFromExpr(chanType.Value, targetPackagePath, importMap)
 
 	switch chanType.Dir {
 	case ast.RECV:
@@ -499,6 +555,7 @@ func (f *astTypeGenerator) generateTypeFromChanType(chanType *ast.ChanType, impo
 
 func (f *astTypeGenerator) generateTypeFromStructType(
 	structType *ast.StructType,
+	targetPackagePath string,
 	importMap map[string]string,
 ) StructType {
 	if structType.Fields == nil {
@@ -512,7 +569,7 @@ func (f *astTypeGenerator) generateTypeFromStructType(
 				fields,
 				TypeField{
 					Name: name.String(),
-					Type: f.generateTypeFromExpr(field.Type, importMap),
+					Type: f.generateTypeFromExpr(field.Type, targetPackagePath, importMap),
 				},
 			)
 		}
@@ -523,6 +580,7 @@ func (f *astTypeGenerator) generateTypeFromStructType(
 
 func (f *astTypeGenerator) generateTypeFromInterfaceType(
 	interfaceType *ast.InterfaceType,
+	targetPackagePath string,
 	importMap map[string]string,
 ) InterfaceType {
 	if interfaceType.Methods == nil {
@@ -536,7 +594,7 @@ func (f *astTypeGenerator) generateTypeFromInterfaceType(
 		funcType := field.Type.(*ast.FuncType)
 		methods = append(methods, InterfaceTypeMethod{
 			Name: name,
-			Func: f.generateTypeFromFuncType(funcType, importMap),
+			Func: f.generateTypeFromFuncType(funcType, targetPackagePath, importMap),
 		})
 	}
 

@@ -1487,3 +1487,358 @@ func (m *Math_SubtractMocker) TakeOneInvocation() Math_SubtractInvocation {
 	m.invocations = m.invocations[1:]
 	return invoc
 }
+
+type DoSomethingWithSomeDummyStructInvocation struct {
+	Inputs struct {
+		Dummy SomeDummyStruct
+	}
+	Outputs struct{}
+}
+
+type DoSomethingWithSomeDummyStructMocker struct {
+	mux         sync.Mutex
+	handlers    []func(SomeDummyStruct)
+	lifetimes   []int
+	invocations []DoSomethingWithSomeDummyStructInvocation
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) Mock(nTimes int, f func(dummy SomeDummyStruct)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("DoSomethingWithSomeDummyStructMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("DoSomethingWithSomeDummyStructMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) MockOnce(f func(dummy SomeDummyStruct)) {
+	m.Mock(1, f)
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) MockForever(f func(dummy SomeDummyStruct)) {
+	m.Mock(0, f)
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) MockOutputs(nTimes int) {
+	m.Mock(nTimes, func(SomeDummyStruct) {
+		return
+	})
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) MockOutputsOnce() {
+	m.MockOutputs(1)
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) MockOutputsForever() {
+	m.MockOutputs(0)
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) MockDefaults(nTimes int) {
+	m.MockOutputs(nTimes)
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) Call(dummy SomeDummyStruct) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("DoSomethingWithSomeDummyStructMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	handler(dummy)
+	input := struct {
+		Dummy SomeDummyStruct
+	}{dummy}
+	output := struct{}{}
+	invoc := DoSomethingWithSomeDummyStructInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) Invocations() []DoSomethingWithSomeDummyStructInvocation {
+	return m.invocations
+}
+
+func (m *DoSomethingWithSomeDummyStructMocker) TakeOneInvocation() DoSomethingWithSomeDummyStructInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("DoSomethingWithSomeDummyStructMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
+func NewMockedDoSomethingWithSomeDummyStruct() (func(SomeDummyStruct), *DoSomethingWithSomeDummyStructMocker) {
+	m := &DoSomethingWithSomeDummyStructMocker{}
+	return m.Call, m
+}
+
+type ReaderMocker struct {
+	Read *Reader_ReadMocker
+}
+
+type MockedReader struct {
+	mocker *ReaderMocker
+}
+
+func (m *MockedReader) Read(p []byte) (n int, err error) {
+	return m.mocker.Read.Call(p)
+}
+
+func NewMockedReader() (*MockedReader, *ReaderMocker) {
+	m := &ReaderMocker{Read: &Reader_ReadMocker{}}
+	return &MockedReader{m}, m
+}
+
+type Reader_ReadInvocation struct {
+	Inputs struct {
+		P []byte
+	}
+	Outputs struct {
+		N   int
+		Err error
+	}
+}
+
+type Reader_ReadMocker struct {
+	mux         sync.Mutex
+	handlers    []func([]byte) (int, error)
+	lifetimes   []int
+	invocations []Reader_ReadInvocation
+}
+
+func (m *Reader_ReadMocker) Mock(nTimes int, f func(p []byte) (n int, err error)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("Reader_ReadMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("Reader_ReadMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *Reader_ReadMocker) MockOnce(f func(p []byte) (n int, err error)) {
+	m.Mock(1, f)
+}
+
+func (m *Reader_ReadMocker) MockForever(f func(p []byte) (n int, err error)) {
+	m.Mock(0, f)
+}
+
+func (m *Reader_ReadMocker) MockOutputs(nTimes int, n int, err error) {
+	m.Mock(nTimes, func([]byte) (int, error) {
+		return n, err
+	})
+}
+
+func (m *Reader_ReadMocker) MockOutputsOnce(n int, err error) {
+	m.MockOutputs(1, n, err)
+}
+
+func (m *Reader_ReadMocker) MockOutputsForever(n int, err error) {
+	m.MockOutputs(0, n, err)
+}
+
+func (m *Reader_ReadMocker) MockDefaults(nTimes int) {
+	var out1 int
+	var out2 error
+	m.MockOutputs(nTimes, out1, out2)
+}
+
+func (m *Reader_ReadMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *Reader_ReadMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *Reader_ReadMocker) Call(p []byte) (int, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("Reader_ReadMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	out1, out2 := handler(p)
+	input := struct {
+		P []byte
+	}{p}
+	output := struct {
+		N   int
+		Err error
+	}{out1, out2}
+	invoc := Reader_ReadInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return out1, out2
+}
+
+func (m *Reader_ReadMocker) Invocations() []Reader_ReadInvocation {
+	return m.invocations
+}
+
+func (m *Reader_ReadMocker) TakeOneInvocation() Reader_ReadInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("Reader_ReadMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
+type WriterMocker struct {
+	Write *Writer_WriteMocker
+}
+
+type MockedWriter struct {
+	mocker *WriterMocker
+}
+
+func (m *MockedWriter) Write(p []byte) (n int, err error) {
+	return m.mocker.Write.Call(p)
+}
+
+func NewMockedWriter() (*MockedWriter, *WriterMocker) {
+	m := &WriterMocker{Write: &Writer_WriteMocker{}}
+	return &MockedWriter{m}, m
+}
+
+type Writer_WriteInvocation struct {
+	Inputs struct {
+		P []byte
+	}
+	Outputs struct {
+		N   int
+		Err error
+	}
+}
+
+type Writer_WriteMocker struct {
+	mux         sync.Mutex
+	handlers    []func([]byte) (int, error)
+	lifetimes   []int
+	invocations []Writer_WriteInvocation
+}
+
+func (m *Writer_WriteMocker) Mock(nTimes int, f func(p []byte) (n int, err error)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("Writer_WriteMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("Writer_WriteMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *Writer_WriteMocker) MockOnce(f func(p []byte) (n int, err error)) {
+	m.Mock(1, f)
+}
+
+func (m *Writer_WriteMocker) MockForever(f func(p []byte) (n int, err error)) {
+	m.Mock(0, f)
+}
+
+func (m *Writer_WriteMocker) MockOutputs(nTimes int, n int, err error) {
+	m.Mock(nTimes, func([]byte) (int, error) {
+		return n, err
+	})
+}
+
+func (m *Writer_WriteMocker) MockOutputsOnce(n int, err error) {
+	m.MockOutputs(1, n, err)
+}
+
+func (m *Writer_WriteMocker) MockOutputsForever(n int, err error) {
+	m.MockOutputs(0, n, err)
+}
+
+func (m *Writer_WriteMocker) MockDefaults(nTimes int) {
+	var out1 int
+	var out2 error
+	m.MockOutputs(nTimes, out1, out2)
+}
+
+func (m *Writer_WriteMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *Writer_WriteMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *Writer_WriteMocker) Call(p []byte) (int, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("Writer_WriteMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	out1, out2 := handler(p)
+	input := struct {
+		P []byte
+	}{p}
+	output := struct {
+		N   int
+		Err error
+	}{out1, out2}
+	invoc := Writer_WriteInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return out1, out2
+}
+
+func (m *Writer_WriteMocker) Invocations() []Writer_WriteInvocation {
+	return m.invocations
+}
+
+func (m *Writer_WriteMocker) TakeOneInvocation() Writer_WriteInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("Writer_WriteMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}

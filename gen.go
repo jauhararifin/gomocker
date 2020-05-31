@@ -27,8 +27,8 @@ func WithOutputPackagePath(outputPackagePath string) GenerateMockerOption {
 }
 
 type TypeSpec struct {
-	Package string
-	Name    string
+	PackagePath string
+	Name        string
 }
 
 type mockerGenerator struct {
