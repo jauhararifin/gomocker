@@ -151,6 +151,10 @@ func (f *astTypeGenerator) findPackagePathByVersion(modVer module.Version) strin
 	}
 	lookupDir = append(lookupDir, filepath.Join(homedir, "go", "pkg", "mod", modVer.Path+"@"+modVer.Version))
 
+	if goroot, ok := os.LookupEnv("GOROOT"); ok {
+		lookupDir = append(lookupDir, filepath.Join(goroot, "src"))
+	}
+
 	if goInstallDir, err := f.findInstalledGoDir(); err == nil {
 		lookupDir = append(lookupDir, goInstallDir)
 	}
