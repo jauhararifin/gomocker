@@ -21,7 +21,7 @@ type Math interface {
 
 2. Put a go generate script to generate mocker code for that interface
 ```go
-//go:generate gomocker gen --force github.com/jauhararifin/gomocker/examples:Math
+//go:generate gomocker gen --force --package github.com/jauhararifin/gomocker/examples github.com/jauhararifin/gomocker/examples:Math
 
 type Math interface {
 	Add(ctx context.Context, a, b int) (sum int, err error)
