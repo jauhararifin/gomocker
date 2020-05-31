@@ -1,6 +1,8 @@
 package gomocker
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -8,6 +10,7 @@ import (
 	"go/token"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
@@ -148,6 +151,9 @@ func (f *astTypeGenerator) findPackagePathByVersion(modVer module.Version) strin
 	}
 	lookupDir = append(lookupDir, filepath.Join(homedir, "go", "pkg", "mod", modVer.Path+"@"+modVer.Version))
 
+	if goInstallDir, err := f.findInstalledGoDir(); err == nil {
+		lookupDir = append(lookupDir, goInstallDir)
+	}
 	lookupDir = append(lookupDir, filepath.Join("/", "usr", "local", "go", "src"))
 
 	if gohome, ok := os.LookupEnv("GOHOME"); ok {
@@ -161,6 +167,21 @@ func (f *astTypeGenerator) findPackagePathByVersion(modVer module.Version) strin
 	}
 
 	panic(fmt.Errorf("cannot find module %s", modVer.String()))
+}
+
+func (f *astTypeGenerator) findInstalledGoDir() (string, error) {
+	cmd := exec.Command("whereis", "go")
+	outputBuff := bytes.Buffer{}
+	cmd.Stdout = &outputBuff
+	cmd.Stderr = &outputBuff
+	if err := cmd.Run(); err != nil {
+		return "", err
+	}
+	line, _, err := bufio.NewReader(&outputBuff).ReadLine()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(string(line), "..", ".."), nil
 }
 
 func (f *astTypeGenerator) findPackagePathFromCandidatePath(modulePath string) (string, bool) {
