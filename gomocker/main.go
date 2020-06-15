@@ -6,7 +6,7 @@ import (
 	"github.com/jauhararifin/gomocker/gomocker/cmd"
 )
 
-var version = "v1.0.1"
+var version = "v1.0.2"
 
 func main() {
 	if buildInfo, ok := debug.ReadBuildInfo(); ok {

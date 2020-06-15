@@ -13,9 +13,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:     "gomocker",
-	Short:   "GoMocker is Golang mocker generator",
-	Long:    "GoMocker generates golang structs to help you mock a function or an interface.",
+	Use:   "gomocker",
+	Short: "GoMocker is Golang mocker generator",
+	Long:  "GoMocker generates golang structs to help you mock a function or an interface.",
 }
 
 var genCmd = &cobra.Command{
@@ -68,16 +68,22 @@ func executeGen(cmd *cobra.Command, args []string) error {
 
 	typeSpecs := make([]gomocker.TypeSpec, 0, len(args))
 	for _, arg := range args {
-		// TODO (jauhar.arifin): use current package if pargs[0] is missing
+		packagePath := pkgName
+		var names []string
+
 		parts := strings.Split(arg, ":")
-		if len(parts) != 2 {
+		if len(parts) == 1 {
+			names = strings.Split(parts[0], ",")
+		} else if len(parts) == 2 {
+			packagePath = parts[0]
+			names = strings.Split(parts[1], ",")
+		} else {
 			return fmt.Errorf("please provide a valid function or interface name. The format is <package-path>:<name1>,<name2>,...")
 		}
 
-		names := strings.Split(parts[1], ",")
 		for _, name := range names {
 			typeSpecs = append(typeSpecs, gomocker.TypeSpec{
-				PackagePath: parts[0],
+				PackagePath: packagePath,
 				Name:        name,
 			})
 		}
@@ -142,6 +148,11 @@ func parseOutputPkg(cmd *cobra.Command, outputFile string) (string, error) {
 		return pkgName, nil
 	}
 
+	pkgPathFromGoMod, err := gomocker.CheckPackageName(filepath.Dir(outputFile))
+	if err == nil {
+		return pkgPathFromGoMod, nil
+	}
+
 	pkg := filepath.Base(filepath.Dir(outputFile))
 	if pkg != "." {
 		return pkg, nil
@@ -161,10 +172,14 @@ func parseOutputFile(cmd *cobra.Command, sourceFile string) (string, error) {
 		return "", err
 	}
 	if outputFile == "" {
-		outputFile = path.Join(
-			path.Dir(sourceFile),
-			strings.TrimSuffix(path.Base(sourceFile), path.Ext(sourceFile))+"_mock_gen.go",
-		)
+		sourceBase, sourceExt := path.Base(sourceFile), path.Ext(sourceFile)
+		outputFile = path.Join(path.Dir(sourceFile), strings.TrimSuffix(sourceBase, sourceExt)+"_mock_gen.go")
+		if strings.HasSuffix(sourceBase, "_test") {
+			outputFile = path.Join(
+				path.Dir(sourceFile),
+				strings.TrimSuffix(sourceBase, sourceExt)+"_mock_test.go",
+			)
+		}
 	}
 	return outputFile, nil
 }
