@@ -48,12 +48,7 @@ func (f *astTypeGenerator) groupTypeSpecByPackage(typeSpecs []TypeSpec) map[stri
 
 func (f *astTypeGenerator) generateTypesInSinglePackage(packagePath string, names ...string) []Type {
 	packageDir := f.findGoPackageDir(packagePath)
-	types := f.generateTypesFromDir(packageDir, packagePath, names...)
-	results := make([]Type, 0, len(names))
-	for _, typ := range types {
-		results = append(results, typ)
-	}
-	return results
+	return f.generateTypesFromDir(packageDir, packagePath, names...)
 }
 
 func (f *astTypeGenerator) findGoPackageDir(packagePath string) string {
@@ -138,7 +133,7 @@ func (f *astTypeGenerator) findPackageDirByModulePath(
 }
 
 func (f *astTypeGenerator) findPackagePathByVersion(modVer module.Version) string {
-	lookupDir := make([]string, 0, 0)
+	lookupDir := make([]string, 0)
 
 	if gohome, ok := os.LookupEnv("GOHOME"); ok {
 		lookupDir = append(lookupDir, filepath.Join(gohome, "pkg", "mod", modVer.Path+"@"+modVer.Version))
@@ -242,8 +237,8 @@ func (f *astTypeGenerator) generateTypesFromDir(packageDir string, packagePath s
 }
 
 func (f *astTypeGenerator) getGoFilesInsideDir(dir string) []string {
-	goSources := make([]string, 0, 0)
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	goSources := make([]string, 0)
+	if err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if path == dir {
 			return nil
 		}
@@ -261,7 +256,9 @@ func (f *astTypeGenerator) getGoFilesInsideDir(dir string) []string {
 		}
 
 		return nil
-	})
+	}); err != nil {
+		panic(fmt.Errorf("error while traversing files: %w", err))
+	}
 	return goSources
 }
 

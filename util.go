@@ -59,9 +59,9 @@ func parseInt(s string) (int, bool) {
 	n := 0
 	for i := 0; i < len(s); i++ {
 		switch {
-		case base >= 10 && s[i] >= 'a' && s[i] < 'a' + base - 10:
+		case base >= 10 && s[i] >= 'a' && s[i] < 'a'+base-10:
 			n = n*int(base) + int(s[i]) - 'a' + 10
-		case base >= 10 && s[i] >= 'A' && s[i] < 'A' + base - 10:
+		case base >= 10 && s[i] >= 'A' && s[i] < 'A'+base-10:
 			n = n*int(base) + int(s[i]) - 'A' + 10
 		case s[i] >= '0' && s[i] < '0'+maxUint8(base, 10):
 			n = n*int(base) + int(s[i]) - '0'
@@ -77,7 +77,7 @@ func maxUint8(a, b uint8) uint8 {
 	return b
 }
 
-type stepFunc func() (jen.Code, )
+type stepFunc func() jen.Code
 
 func concatSteps(steps ...stepFunc) jen.Code {
 	j := jen.Empty()
