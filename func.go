@@ -180,7 +180,7 @@ func (f *funcMockerGeneratorHelper) generateMockOutputsMethod() jen.Code {
 		Params(jen.Id("m").Op("*").Id(f.getMockerStructName())).
 		Id("MockOutputs").
 		Params(
-			append([]jen.Code{jen.Id("nTimes").Int()}, f.generateOutputParamSignature(true)...)...
+			append([]jen.Code{jen.Id("nTimes").Int()}, f.generateOutputParamSignature(true)...)...,
 		).Block(
 		jen.Id("m").Dot("Mock").Call(
 			jen.Id("nTimes"),
@@ -239,7 +239,7 @@ func (f *funcMockerGeneratorHelper) generateMockOutputsOnceMethod() jen.Code {
 		Params(f.generateOutputParamSignature(true)...).
 		Block(
 			jen.Id("m").Dot("MockOutputs").Call(
-				append([]jen.Code{jen.Lit(1)}, f.generateOutputList(true)...)...
+				append([]jen.Code{jen.Lit(1)}, f.generateOutputList(true)...)...,
 			),
 		)
 }
@@ -251,7 +251,7 @@ func (f *funcMockerGeneratorHelper) generateMockOutputsForeverMethod() jen.Code 
 		Params(f.generateOutputParamSignature(true)...).
 		Block(
 			jen.Id("m").Dot("MockOutputs").Call(
-				append([]jen.Code{jen.Lit(0)}, f.generateOutputList(true)...)...
+				append([]jen.Code{jen.Lit(0)}, f.generateOutputList(true)...)...,
 			),
 		)
 }
@@ -262,7 +262,7 @@ func (f *funcMockerGeneratorHelper) generateMockDefaultsMethod() jen.Code {
 		Id("MockDefaults").
 		Params(jen.Id("nTimes").Int())
 
-	body := make([]jen.Code, 0, 0)
+	body := make([]jen.Code, 0)
 
 	for i, field := range f.funcType.Outputs {
 		body = append(

@@ -117,7 +117,7 @@ func (s *interfaceMockerGeneratorHelper) generateMockedInterfaceImpl() jen.Code 
 }
 
 func (s *interfaceMockerGeneratorHelper) generateInterfaceMockerConstructor() jen.Code {
-	values := make([]jen.Code, 0, 0)
+	values := make([]jen.Code, 0)
 	for _, method := range s.interfaceType.Methods {
 		name := method.Name
 		values = append(
