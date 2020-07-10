@@ -1593,6 +1593,753 @@ func NewMockedDoSomethingWithSomeDummyStruct() (func(SomeDummyStruct), *DoSometh
 	return m.Call, m
 }
 
+type InterfaceCMocker struct {
+	A      *InterfaceC_AMocker
+	B      *InterfaceC_BMocker
+	String *InterfaceC_StringMocker
+	Read   *InterfaceC_ReadMocker
+	Write  *InterfaceC_WriteMocker
+	Close  *InterfaceC_CloseMocker
+	C      *InterfaceC_CMocker
+}
+
+type MockedInterfaceC struct {
+	mocker *InterfaceCMocker
+}
+
+func (m *MockedInterfaceC) A() {
+	m.mocker.A.Call()
+}
+func (m *MockedInterfaceC) B() {
+	m.mocker.B.Call()
+}
+func (m *MockedInterfaceC) String() (out1 string) {
+	return m.mocker.String.Call()
+}
+func (m *MockedInterfaceC) Read(p []byte) (n int, err error) {
+	return m.mocker.Read.Call(p)
+}
+func (m *MockedInterfaceC) Write(p []byte) (n int, err error) {
+	return m.mocker.Write.Call(p)
+}
+func (m *MockedInterfaceC) Close() (out1 error) {
+	return m.mocker.Close.Call()
+}
+func (m *MockedInterfaceC) C() {
+	m.mocker.C.Call()
+}
+
+func NewMockedInterfaceC() (*MockedInterfaceC, *InterfaceCMocker) {
+	m := &InterfaceCMocker{A: &InterfaceC_AMocker{}, B: &InterfaceC_BMocker{}, String: &InterfaceC_StringMocker{}, Read: &InterfaceC_ReadMocker{}, Write: &InterfaceC_WriteMocker{}, Close: &InterfaceC_CloseMocker{}, C: &InterfaceC_CMocker{}}
+	return &MockedInterfaceC{m}, m
+}
+
+type InterfaceC_AInvocation struct {
+	Inputs  struct{}
+	Outputs struct{}
+}
+
+type InterfaceC_AMocker struct {
+	mux         sync.Mutex
+	handlers    []func()
+	lifetimes   []int
+	invocations []InterfaceC_AInvocation
+}
+
+func (m *InterfaceC_AMocker) Mock(nTimes int, f func()) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("InterfaceC_AMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("InterfaceC_AMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *InterfaceC_AMocker) MockOnce(f func()) {
+	m.Mock(1, f)
+}
+
+func (m *InterfaceC_AMocker) MockForever(f func()) {
+	m.Mock(0, f)
+}
+
+func (m *InterfaceC_AMocker) MockOutputs(nTimes int) {
+	m.Mock(nTimes, func() {
+		return
+	})
+}
+
+func (m *InterfaceC_AMocker) MockOutputsOnce() {
+	m.MockOutputs(1)
+}
+
+func (m *InterfaceC_AMocker) MockOutputsForever() {
+	m.MockOutputs(0)
+}
+
+func (m *InterfaceC_AMocker) MockDefaults(nTimes int) {
+	m.MockOutputs(nTimes)
+}
+
+func (m *InterfaceC_AMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *InterfaceC_AMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *InterfaceC_AMocker) Call() {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("InterfaceC_AMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	handler()
+	input := struct{}{}
+	output := struct{}{}
+	invoc := InterfaceC_AInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return
+}
+
+func (m *InterfaceC_AMocker) Invocations() []InterfaceC_AInvocation {
+	return m.invocations
+}
+
+func (m *InterfaceC_AMocker) TakeOneInvocation() InterfaceC_AInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("InterfaceC_AMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
+type InterfaceC_BInvocation struct {
+	Inputs  struct{}
+	Outputs struct{}
+}
+
+type InterfaceC_BMocker struct {
+	mux         sync.Mutex
+	handlers    []func()
+	lifetimes   []int
+	invocations []InterfaceC_BInvocation
+}
+
+func (m *InterfaceC_BMocker) Mock(nTimes int, f func()) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("InterfaceC_BMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("InterfaceC_BMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *InterfaceC_BMocker) MockOnce(f func()) {
+	m.Mock(1, f)
+}
+
+func (m *InterfaceC_BMocker) MockForever(f func()) {
+	m.Mock(0, f)
+}
+
+func (m *InterfaceC_BMocker) MockOutputs(nTimes int) {
+	m.Mock(nTimes, func() {
+		return
+	})
+}
+
+func (m *InterfaceC_BMocker) MockOutputsOnce() {
+	m.MockOutputs(1)
+}
+
+func (m *InterfaceC_BMocker) MockOutputsForever() {
+	m.MockOutputs(0)
+}
+
+func (m *InterfaceC_BMocker) MockDefaults(nTimes int) {
+	m.MockOutputs(nTimes)
+}
+
+func (m *InterfaceC_BMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *InterfaceC_BMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *InterfaceC_BMocker) Call() {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("InterfaceC_BMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	handler()
+	input := struct{}{}
+	output := struct{}{}
+	invoc := InterfaceC_BInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return
+}
+
+func (m *InterfaceC_BMocker) Invocations() []InterfaceC_BInvocation {
+	return m.invocations
+}
+
+func (m *InterfaceC_BMocker) TakeOneInvocation() InterfaceC_BInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("InterfaceC_BMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
+type InterfaceC_StringInvocation struct {
+	Inputs  struct{}
+	Outputs struct {
+		Out1 string
+	}
+}
+
+type InterfaceC_StringMocker struct {
+	mux         sync.Mutex
+	handlers    []func() string
+	lifetimes   []int
+	invocations []InterfaceC_StringInvocation
+}
+
+func (m *InterfaceC_StringMocker) Mock(nTimes int, f func() (out1 string)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("InterfaceC_StringMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("InterfaceC_StringMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *InterfaceC_StringMocker) MockOnce(f func() (out1 string)) {
+	m.Mock(1, f)
+}
+
+func (m *InterfaceC_StringMocker) MockForever(f func() (out1 string)) {
+	m.Mock(0, f)
+}
+
+func (m *InterfaceC_StringMocker) MockOutputs(nTimes int, out1 string) {
+	m.Mock(nTimes, func() string {
+		return out1
+	})
+}
+
+func (m *InterfaceC_StringMocker) MockOutputsOnce(out1 string) {
+	m.MockOutputs(1, out1)
+}
+
+func (m *InterfaceC_StringMocker) MockOutputsForever(out1 string) {
+	m.MockOutputs(0, out1)
+}
+
+func (m *InterfaceC_StringMocker) MockDefaults(nTimes int) {
+	var out1 string
+	m.MockOutputs(nTimes, out1)
+}
+
+func (m *InterfaceC_StringMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *InterfaceC_StringMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *InterfaceC_StringMocker) Call() string {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("InterfaceC_StringMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	out1 := handler()
+	input := struct{}{}
+	output := struct {
+		Out1 string
+	}{out1}
+	invoc := InterfaceC_StringInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return out1
+}
+
+func (m *InterfaceC_StringMocker) Invocations() []InterfaceC_StringInvocation {
+	return m.invocations
+}
+
+func (m *InterfaceC_StringMocker) TakeOneInvocation() InterfaceC_StringInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("InterfaceC_StringMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
+type InterfaceC_ReadInvocation struct {
+	Inputs struct {
+		P []byte
+	}
+	Outputs struct {
+		N   int
+		Err error
+	}
+}
+
+type InterfaceC_ReadMocker struct {
+	mux         sync.Mutex
+	handlers    []func([]byte) (int, error)
+	lifetimes   []int
+	invocations []InterfaceC_ReadInvocation
+}
+
+func (m *InterfaceC_ReadMocker) Mock(nTimes int, f func(p []byte) (n int, err error)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("InterfaceC_ReadMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("InterfaceC_ReadMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *InterfaceC_ReadMocker) MockOnce(f func(p []byte) (n int, err error)) {
+	m.Mock(1, f)
+}
+
+func (m *InterfaceC_ReadMocker) MockForever(f func(p []byte) (n int, err error)) {
+	m.Mock(0, f)
+}
+
+func (m *InterfaceC_ReadMocker) MockOutputs(nTimes int, n int, err error) {
+	m.Mock(nTimes, func([]byte) (int, error) {
+		return n, err
+	})
+}
+
+func (m *InterfaceC_ReadMocker) MockOutputsOnce(n int, err error) {
+	m.MockOutputs(1, n, err)
+}
+
+func (m *InterfaceC_ReadMocker) MockOutputsForever(n int, err error) {
+	m.MockOutputs(0, n, err)
+}
+
+func (m *InterfaceC_ReadMocker) MockDefaults(nTimes int) {
+	var out1 int
+	var out2 error
+	m.MockOutputs(nTimes, out1, out2)
+}
+
+func (m *InterfaceC_ReadMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *InterfaceC_ReadMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *InterfaceC_ReadMocker) Call(p []byte) (int, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("InterfaceC_ReadMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	out1, out2 := handler(p)
+	input := struct {
+		P []byte
+	}{p}
+	output := struct {
+		N   int
+		Err error
+	}{out1, out2}
+	invoc := InterfaceC_ReadInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return out1, out2
+}
+
+func (m *InterfaceC_ReadMocker) Invocations() []InterfaceC_ReadInvocation {
+	return m.invocations
+}
+
+func (m *InterfaceC_ReadMocker) TakeOneInvocation() InterfaceC_ReadInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("InterfaceC_ReadMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
+type InterfaceC_WriteInvocation struct {
+	Inputs struct {
+		P []byte
+	}
+	Outputs struct {
+		N   int
+		Err error
+	}
+}
+
+type InterfaceC_WriteMocker struct {
+	mux         sync.Mutex
+	handlers    []func([]byte) (int, error)
+	lifetimes   []int
+	invocations []InterfaceC_WriteInvocation
+}
+
+func (m *InterfaceC_WriteMocker) Mock(nTimes int, f func(p []byte) (n int, err error)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("InterfaceC_WriteMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("InterfaceC_WriteMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *InterfaceC_WriteMocker) MockOnce(f func(p []byte) (n int, err error)) {
+	m.Mock(1, f)
+}
+
+func (m *InterfaceC_WriteMocker) MockForever(f func(p []byte) (n int, err error)) {
+	m.Mock(0, f)
+}
+
+func (m *InterfaceC_WriteMocker) MockOutputs(nTimes int, n int, err error) {
+	m.Mock(nTimes, func([]byte) (int, error) {
+		return n, err
+	})
+}
+
+func (m *InterfaceC_WriteMocker) MockOutputsOnce(n int, err error) {
+	m.MockOutputs(1, n, err)
+}
+
+func (m *InterfaceC_WriteMocker) MockOutputsForever(n int, err error) {
+	m.MockOutputs(0, n, err)
+}
+
+func (m *InterfaceC_WriteMocker) MockDefaults(nTimes int) {
+	var out1 int
+	var out2 error
+	m.MockOutputs(nTimes, out1, out2)
+}
+
+func (m *InterfaceC_WriteMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *InterfaceC_WriteMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *InterfaceC_WriteMocker) Call(p []byte) (int, error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("InterfaceC_WriteMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	out1, out2 := handler(p)
+	input := struct {
+		P []byte
+	}{p}
+	output := struct {
+		N   int
+		Err error
+	}{out1, out2}
+	invoc := InterfaceC_WriteInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return out1, out2
+}
+
+func (m *InterfaceC_WriteMocker) Invocations() []InterfaceC_WriteInvocation {
+	return m.invocations
+}
+
+func (m *InterfaceC_WriteMocker) TakeOneInvocation() InterfaceC_WriteInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("InterfaceC_WriteMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
+type InterfaceC_CloseInvocation struct {
+	Inputs  struct{}
+	Outputs struct {
+		Out1 error
+	}
+}
+
+type InterfaceC_CloseMocker struct {
+	mux         sync.Mutex
+	handlers    []func() error
+	lifetimes   []int
+	invocations []InterfaceC_CloseInvocation
+}
+
+func (m *InterfaceC_CloseMocker) Mock(nTimes int, f func() (out1 error)) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("InterfaceC_CloseMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("InterfaceC_CloseMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *InterfaceC_CloseMocker) MockOnce(f func() (out1 error)) {
+	m.Mock(1, f)
+}
+
+func (m *InterfaceC_CloseMocker) MockForever(f func() (out1 error)) {
+	m.Mock(0, f)
+}
+
+func (m *InterfaceC_CloseMocker) MockOutputs(nTimes int, out1 error) {
+	m.Mock(nTimes, func() error {
+		return out1
+	})
+}
+
+func (m *InterfaceC_CloseMocker) MockOutputsOnce(out1 error) {
+	m.MockOutputs(1, out1)
+}
+
+func (m *InterfaceC_CloseMocker) MockOutputsForever(out1 error) {
+	m.MockOutputs(0, out1)
+}
+
+func (m *InterfaceC_CloseMocker) MockDefaults(nTimes int) {
+	var out1 error
+	m.MockOutputs(nTimes, out1)
+}
+
+func (m *InterfaceC_CloseMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *InterfaceC_CloseMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *InterfaceC_CloseMocker) Call() error {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("InterfaceC_CloseMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	out1 := handler()
+	input := struct{}{}
+	output := struct {
+		Out1 error
+	}{out1}
+	invoc := InterfaceC_CloseInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return out1
+}
+
+func (m *InterfaceC_CloseMocker) Invocations() []InterfaceC_CloseInvocation {
+	return m.invocations
+}
+
+func (m *InterfaceC_CloseMocker) TakeOneInvocation() InterfaceC_CloseInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("InterfaceC_CloseMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
+type InterfaceC_CInvocation struct {
+	Inputs  struct{}
+	Outputs struct{}
+}
+
+type InterfaceC_CMocker struct {
+	mux         sync.Mutex
+	handlers    []func()
+	lifetimes   []int
+	invocations []InterfaceC_CInvocation
+}
+
+func (m *InterfaceC_CMocker) Mock(nTimes int, f func()) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	nHandler := len(m.lifetimes)
+	if nHandler > 0 && m.lifetimes[nHandler-1] == 0 {
+		panic("InterfaceC_CMocker: already mocked forever")
+	}
+	if nTimes < 0 {
+		panic("InterfaceC_CMocker: invalid lifetime, valid lifetime are positive number and 0 (0 means forever)")
+	}
+	m.handlers = append(m.handlers, f)
+	m.lifetimes = append(m.lifetimes, nTimes)
+}
+
+func (m *InterfaceC_CMocker) MockOnce(f func()) {
+	m.Mock(1, f)
+}
+
+func (m *InterfaceC_CMocker) MockForever(f func()) {
+	m.Mock(0, f)
+}
+
+func (m *InterfaceC_CMocker) MockOutputs(nTimes int) {
+	m.Mock(nTimes, func() {
+		return
+	})
+}
+
+func (m *InterfaceC_CMocker) MockOutputsOnce() {
+	m.MockOutputs(1)
+}
+
+func (m *InterfaceC_CMocker) MockOutputsForever() {
+	m.MockOutputs(0)
+}
+
+func (m *InterfaceC_CMocker) MockDefaults(nTimes int) {
+	m.MockOutputs(nTimes)
+}
+
+func (m *InterfaceC_CMocker) MockDefaultsOnce() {
+	m.MockDefaults(1)
+}
+
+func (m *InterfaceC_CMocker) MockDefaultsForever() {
+	m.MockDefaults(0)
+}
+
+func (m *InterfaceC_CMocker) Call() {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.handlers) == 0 {
+		panic("InterfaceC_CMocker: no handler")
+	}
+	handler := m.handlers[0]
+	if m.lifetimes[0] == 1 {
+		m.handlers = m.handlers[1:]
+		m.lifetimes = m.lifetimes[1:]
+	} else if m.lifetimes[0] > 1 {
+		m.lifetimes[0]--
+	}
+	handler()
+	input := struct{}{}
+	output := struct{}{}
+	invoc := InterfaceC_CInvocation{input, output}
+	m.invocations = append(m.invocations, invoc)
+	return
+}
+
+func (m *InterfaceC_CMocker) Invocations() []InterfaceC_CInvocation {
+	return m.invocations
+}
+
+func (m *InterfaceC_CMocker) TakeOneInvocation() InterfaceC_CInvocation {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	if len(m.invocations) == 0 {
+		panic("InterfaceC_CMocker: no invocations")
+	}
+	invoc := m.invocations[0]
+	m.invocations = m.invocations[1:]
+	return invoc
+}
+
 type ReaderMocker struct {
 	Read *Reader_ReadMocker
 }
