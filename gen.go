@@ -8,17 +8,10 @@ import (
 )
 
 type generateMockerOption struct {
-	inputFileName     string
 	outputPackagePath string
 }
 
 type GenerateMockerOption func(option *generateMockerOption)
-
-func WithInputFileName(inputFileName string) GenerateMockerOption {
-	return func(option *generateMockerOption) {
-		option.inputFileName = inputFileName
-	}
-}
 
 func WithOutputPackagePath(outputPackagePath string) GenerateMockerOption {
 	return func(option *generateMockerOption) {
@@ -67,9 +60,7 @@ func (m *mockerGenerator) GenerateMocker(
 }
 
 func (m *mockerGenerator) initOption(options ...GenerateMockerOption) *generateMockerOption {
-	option := &generateMockerOption{
-		inputFileName: "dummyfile.go",
-	}
+	option := &generateMockerOption{}
 	for _, opt := range options {
 		opt(option)
 	}

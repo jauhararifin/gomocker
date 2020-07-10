@@ -25,27 +25,21 @@ var genCmd = &cobra.Command{
 	RunE:         executeGen,
 }
 
-func init() {
-	genCmd.Flags().String("source", "", "Your golang source code file. Can omit this when using go generate")
+func Execute(version string) {
+	rootCmd.Version = version
+	// TODO (jauhar.arifin): actually we can infer the output package from the output dir.
 	genCmd.Flags().String("package", "", "The output mocker package name. By default it will be the same as the source")
 	genCmd.Flags().String("output", "", "Generated mocker output filename, by default it's <source_file>_mock_gen.go")
 	genCmd.Flags().Bool("force", false, "Force create the file if it is already exist")
-
 	rootCmd.AddCommand(genCmd)
-}
 
-func Execute(version string) {
-	rootCmd.Version = version
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
 
 func executeGen(cmd *cobra.Command, args []string) error {
-	sourceFile, err := parseSourceFile(cmd)
-	if err != nil {
-		return err
-	}
+	sourceFile := os.Getenv("GOFILE")
 
 	outputFile, err := parseOutputFile(cmd, sourceFile)
 	if err != nil {
@@ -68,7 +62,7 @@ func executeGen(cmd *cobra.Command, args []string) error {
 
 	typeSpecs := make([]gomocker.TypeSpec, 0, len(args))
 	for _, arg := range args {
-		packagePath := pkgName
+		packagePath, _ := parsePackageFromFilename(sourceFile)
 		var names []string
 
 		parts := strings.Split(arg, ":")
@@ -95,17 +89,10 @@ func executeGen(cmd *cobra.Command, args []string) error {
 
 	tempOutput := &bytes.Buffer{}
 
-	file, err := os.Open(sourceFile)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
 	if err := gomocker.GenerateMocker(
 		typeSpecs,
 		tempOutput,
 		gomocker.WithOutputPackagePath(pkgName),
-		gomocker.WithInputFileName(path.Base(sourceFile)),
 	); err != nil {
 		return err
 	}
@@ -121,23 +108,6 @@ func executeGen(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func parseSourceFile(cmd *cobra.Command) (string, error) {
-	sourceFile, err := cmd.Flags().GetString("source")
-	if err != nil {
-		return "", err
-	}
-	if sourceFile == "" {
-		sourceFile = os.Getenv("GOFILE")
-	}
-	if sourceFile == "" {
-		return "", fmt.Errorf("please provide source file")
-	}
-	if path.Ext(sourceFile) != ".go" {
-		return "", fmt.Errorf("please provide .go file as the source file")
-	}
-	return sourceFile, nil
-}
-
 func parseOutputPkg(cmd *cobra.Command, outputFile string) (string, error) {
 	// TODO (jauhar.arifin): parse package name based on the output dir
 	pkgName, err := cmd.Flags().GetString("package")
@@ -148,12 +118,16 @@ func parseOutputPkg(cmd *cobra.Command, outputFile string) (string, error) {
 		return pkgName, nil
 	}
 
-	pkgPathFromGoMod, err := gomocker.CheckPackageName(filepath.Dir(outputFile))
+	return parsePackageFromFilename(outputFile)
+}
+
+func parsePackageFromFilename(filename string) (string, error) {
+	pkgPathFromGoMod, err := gomocker.CheckPackageName(filepath.Dir(filename))
 	if err == nil {
 		return pkgPathFromGoMod, nil
 	}
 
-	pkg := filepath.Base(filepath.Dir(outputFile))
+	pkg := filepath.Base(filepath.Dir(filename))
 	if pkg != "." {
 		return pkg, nil
 	}
@@ -171,15 +145,15 @@ func parseOutputFile(cmd *cobra.Command, sourceFile string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if outputFile == "" {
-		sourceBase, sourceExt := path.Base(sourceFile), path.Ext(sourceFile)
-		outputFile = path.Join(path.Dir(sourceFile), strings.TrimSuffix(sourceBase, sourceExt)+"_mock_gen.go")
-		if strings.HasSuffix(sourceBase, "_test") {
-			outputFile = path.Join(
-				path.Dir(sourceFile),
-				strings.TrimSuffix(sourceBase, sourceExt)+"_mock_test.go",
-			)
-		}
+
+	if outputFile != "" {
+		return outputFile, nil
 	}
-	return outputFile, nil
+
+	if sourceFile == "" {
+		return "mock.go", nil
+	}
+
+	sourceBase, sourceExt := path.Base(sourceFile), path.Ext(sourceFile)
+	return path.Join(path.Dir(sourceFile), strings.TrimSuffix(sourceBase, sourceExt)+"_mock.go"), nil
 }

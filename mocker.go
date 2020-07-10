@@ -5,7 +5,9 @@ import "io"
 const gomockerPath = "github.com/jauhararifin/gomocker"
 
 var defaultMockerGenerator = &mockerGenerator{
-	astTypeGenerator: &astTypeGenerator{},
+	astTypeGenerator: &astTypeGenerator{
+		sourceFinder: &defaultSourceFinder{},
+	},
 	funcMockerGenerator: &funcMockerGenerator{
 		namer: &defaultFuncMockerNamer{},
 	},
