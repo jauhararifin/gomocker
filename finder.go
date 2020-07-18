@@ -118,7 +118,7 @@ func (*defaultSourceFinder) findPackageDirByModulePath(
 }
 
 func (s *defaultSourceFinder) findPackagePathByVersion(modVer module.Version) string {
-	lookupDir := make([]string, 0, 0)
+	lookupDir := make([]string, 0)
 
 	if gohome, ok := os.LookupEnv("GOHOME"); ok {
 		lookupDir = append(lookupDir, filepath.Join(gohome, "pkg", "mod", modVer.Path+"@"+modVer.Version))
@@ -181,8 +181,8 @@ func (*defaultSourceFinder) findPackagePathFromCandidatePath(modulePath string) 
 }
 
 func (*defaultSourceFinder) getGoSourcesInsideDir(dir string) []string {
-	goSources := make([]string, 0, 0)
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	goSources := make([]string, 0)
+	if err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if path == dir {
 			return nil
 		}
@@ -200,6 +200,8 @@ func (*defaultSourceFinder) getGoSourcesInsideDir(dir string) []string {
 		}
 
 		return nil
-	})
+	}); err != nil {
+		panic(fmt.Errorf("error while traversing the directories: %w", err))
+	}
 	return goSources
 }
