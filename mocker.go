@@ -1,13 +1,14 @@
 package gomocker
 
-import "io"
+import (
+	"io"
+
+	"github.com/jauhararifin/gotype"
+)
 
 const gomockerPath = "github.com/jauhararifin/gomocker"
 
 var defaultMockerGenerator = &mockerGenerator{
-	astTypeGenerator: &astTypeGenerator{
-		sourceFinder: &defaultSourceFinder{},
-	},
 	funcMockerGenerator: &funcMockerGenerator{
 		namer: &defaultFuncMockerNamer{},
 	},
@@ -17,6 +18,6 @@ var defaultMockerGenerator = &mockerGenerator{
 	},
 }
 
-func GenerateMocker(typeSpecs []TypeSpec, w io.Writer, options ...GenerateMockerOption) error {
+func GenerateMocker(typeSpecs []gotype.TypeSpec, w io.Writer, options ...GenerateMockerOption) error {
 	return defaultMockerGenerator.GenerateMocker(typeSpecs, w, options...)
 }

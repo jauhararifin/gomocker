@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/dave/jennifer/jen"
+	"github.com/jauhararifin/gotype"
 )
 
 type generateMockerOption struct {
@@ -19,39 +20,35 @@ func WithOutputPackagePath(outputPackagePath string) GenerateMockerOption {
 	}
 }
 
-type TypeSpec struct {
-	PackagePath string
-	Name        string
-}
-
 type mockerGenerator struct {
-	astTypeGenerator interface {
-		GenerateTypesFromSpecs(spec ...TypeSpec) []Type
-	}
 	funcMockerGenerator interface {
 		GenerateFunctionMocker(
 			name string,
-			funcType FuncType,
+			funcType gotype.FuncType,
 			withConstructor bool,
 		) jen.Code
 	}
 	interfaceMockerGenerator interface {
 		GenerateInterfaceMocker(
 			name string,
-			interfaceType InterfaceType,
+			interfaceType gotype.InterfaceType,
 		) jen.Code
 	}
 }
 
 func (m *mockerGenerator) GenerateMocker(
-	specs []TypeSpec,
+	specs []gotype.TypeSpec,
 	w io.Writer,
 	options ...GenerateMockerOption,
 ) error {
 	option := m.initOption(options...)
 
 	file := m.createCodeGenFile(option)
-	types := m.astTypeGenerator.GenerateTypesFromSpecs(specs...)
+	types, err := gotype.GenerateTypesFromSpecs(specs...)
+	if err != nil {
+		return err
+	}
+
 	for i, typ := range types {
 		file.Add(m.generateEntityMockerByName(option, typ, specs[i].Name)).Line().Line()
 	}
@@ -80,7 +77,7 @@ func (m *mockerGenerator) createCodeGenFile(option *generateMockerOption) *jen.F
 
 func (m *mockerGenerator) generateEntityMockerByName(
 	option *generateMockerOption,
-	typ Type,
+	typ gotype.Type,
 	name string,
 ) jen.Code {
 	if typ.FuncType != nil {
@@ -96,7 +93,7 @@ func (m *mockerGenerator) generateEntityMockerByName(
 
 func (m *mockerGenerator) generateFunctionMocker(
 	funcName string,
-	funcType FuncType,
+	funcType gotype.FuncType,
 	mockerNamer FuncMockerNamer,
 ) jen.Code {
 	funcMockerGenerator := funcMockerGeneratorHelper{
@@ -110,7 +107,7 @@ func (m *mockerGenerator) generateFunctionMocker(
 
 func (m *mockerGenerator) generateInterfaceMocker(
 	interfaceName string,
-	interfaceType InterfaceType,
+	interfaceType gotype.InterfaceType,
 	funcMockerNamer FuncMockerNamer,
 	interfaceMockerNamer InterfaceMockerNamer,
 ) jen.Code {

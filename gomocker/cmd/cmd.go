@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jauhararifin/gomocker"
+	"github.com/jauhararifin/gotype"
 	"github.com/spf13/cobra"
 )
 
@@ -60,7 +61,7 @@ func executeGen(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("please provide at least one function or interface you want to mock")
 	}
 
-	typeSpecs := make([]gomocker.TypeSpec, 0, len(args))
+	typeSpecs := make([]gotype.TypeSpec, 0, len(args))
 	for _, arg := range args {
 		packagePath, _ := parsePackageFromFilename(sourceFile)
 		var names []string
@@ -76,7 +77,7 @@ func executeGen(cmd *cobra.Command, args []string) error {
 		}
 
 		for _, name := range names {
-			typeSpecs = append(typeSpecs, gomocker.TypeSpec{
+			typeSpecs = append(typeSpecs, gotype.TypeSpec{
 				PackagePath: packagePath,
 				Name:        name,
 			})
