@@ -91,7 +91,7 @@ func (c *typeCodeGenerator) generateQualType(qualType *types.Named, flag int32) 
 	if qualType.Obj().Pkg() == nil {
 		return jen.Id(qualType.Obj().Name())
 	}
-	return jen.Qual(qualType.Obj().Pkg().Name(), qualType.Obj().Name())
+	return jen.Qual(qualType.Obj().Pkg().Path(), qualType.Obj().Name())
 }
 
 func (c *typeCodeGenerator) generateSliceType(sliceType *types.Slice, flag int32) jen.Code {
