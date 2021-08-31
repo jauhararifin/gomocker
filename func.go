@@ -2,16 +2,20 @@ package gomocker
 
 import (
 	"fmt"
+	"go/types"
 
 	"github.com/dave/jennifer/jen"
-	"github.com/jauhararifin/gotype"
 )
 
 type funcMockerGenerator struct {
 	namer FuncMockerNamer
 }
 
-func (f *funcMockerGenerator) GenerateFunctionMocker(name string, funcType gotype.FuncType, withConstructor bool) jen.Code {
+func (f *funcMockerGenerator) GenerateFunctionMocker(
+	name string,
+	funcType *types.Signature,
+	withConstructor bool,
+) jen.Code {
 	generator := &funcMockerGeneratorHelper{
 		funcName:        name,
 		funcType:        funcType,
@@ -23,7 +27,7 @@ func (f *funcMockerGenerator) GenerateFunctionMocker(name string, funcType gotyp
 
 type funcMockerGeneratorHelper struct {
 	funcName        string
-	funcType        gotype.FuncType
+	funcType        *types.Signature
 	mockerNamer     FuncMockerNamer
 	withConstructor bool
 }
@@ -63,33 +67,34 @@ func (f *funcMockerGeneratorHelper) getInvocationStructName() string {
 }
 
 func (f *funcMockerGeneratorHelper) generateInputStruct() jen.Code {
-	return f.generateInputOutputStruct(f.funcType.Inputs, false, f.funcType.IsVariadic)
+	return f.generateInputOutputStruct(f.funcType.Params(), false, f.funcType.Variadic())
 }
 
 func (f *funcMockerGeneratorHelper) generateInputOutputStruct(
-	fields []gotype.TypeField,
+	fields *types.Tuple,
 	isOutput bool,
 	isVariadic bool,
 ) jen.Code {
 	return jen.StructFunc(func(g *jen.Group) {
-		for i, field := range fields {
-			typ := GenerateCode(field.Type, BareFunctionFlag)
-			if isVariadic && !isOutput && i == len(fields)-1 {
+		for i := 0; i < fields.Len(); i++ {
+			field := fields.At(i)
+			typ := GenerateCode(field.Type(), BareFunctionFlag)
+			if isVariadic && !isOutput && i == fields.Len()-1 {
 				typ = jen.Index().Add(typ)
 			}
-			g.Id(makePublic(field.Name)).Add(typ)
+			g.Id(makePublic(field.Name())).Add(typ)
 		}
 	})
 }
 
 func (f *funcMockerGeneratorHelper) generateOutputStruct() jen.Code {
-	return f.generateInputOutputStruct(f.funcType.Outputs, true, false)
+	return f.generateInputOutputStruct(f.funcType.Results(), true, false)
 }
 
 func (f *funcMockerGeneratorHelper) generateMockerStruct() jen.Code {
 	return jen.Type().Id(f.getMockerStructName()).Struct(
 		jen.Id("mux").Qual("sync", "Mutex"),
-		jen.Id("handlers").Index().Add(GenerateCode(f.funcType.Type(), BareFunctionFlag)),
+		jen.Id("handlers").Index().Add(GenerateCode(f.funcType, BareFunctionFlag)),
 		jen.Id("lifetimes").Index().Int(),
 		jen.Id("invocations").Index().Id(f.getInvocationStructName()),
 	)
@@ -105,7 +110,7 @@ func (f *funcMockerGeneratorHelper) generateMockMethod() jen.Code {
 		Id("Mock").
 		Params(
 			jen.Id("nTimes").Int(),
-			jen.Id("f").Add(GenerateCode(f.funcType.Type(), DefaultFlag)),
+			jen.Id("f").Add(GenerateCode(f.funcType, DefaultFlag)),
 		).
 		BlockFunc(func(g *jen.Group) {
 			f.generateLockUnlock(g)
@@ -148,7 +153,7 @@ func (f *funcMockerGeneratorHelper) generateMockOnceMethod() jen.Code {
 	return jen.Func().
 		Params(jen.Id("m").Op("*").Id(f.getMockerStructName())).
 		Id("MockOnce").
-		Params(jen.Id("f").Add(GenerateCode(f.funcType.Type(), DefaultFlag))).
+		Params(jen.Id("f").Add(GenerateCode(f.funcType, DefaultFlag))).
 		Block(
 			jen.Id("m").Dot("Mock").Call(jen.Lit(1), jen.Id("f")),
 		)
@@ -158,7 +163,7 @@ func (f *funcMockerGeneratorHelper) generateMockForeverMethod() jen.Code {
 	return jen.Func().
 		Params(jen.Id("m").Op("*").Id(f.getMockerStructName())).
 		Id("MockForever").
-		Params(jen.Id("f").Add(GenerateCode(f.funcType.Type(), DefaultFlag))).
+		Params(jen.Id("f").Add(GenerateCode(f.funcType, DefaultFlag))).
 		Block(
 			jen.Id("m").Dot("Mock").Call(jen.Lit(0), jen.Id("f")),
 		)
@@ -182,14 +187,15 @@ func (f *funcMockerGeneratorHelper) generateMockOutputsMethod() jen.Code {
 }
 
 func (f *funcMockerGeneratorHelper) generateInputParamSignature(withName bool) []jen.Code {
-	inputs := make([]jen.Code, 0, len(f.funcType.Inputs))
-	for i, field := range f.funcType.Inputs {
-		typ := GenerateCode(field.Type, DefaultFlag)
-		if f.funcType.IsVariadic && i == len(f.funcType.Inputs)-1 {
+	inputs := make([]jen.Code, 0, f.funcType.Params().Len())
+	for i := 0; i < f.funcType.Params().Len(); i++ {
+		field := f.funcType.Params().At(i)
+		typ := GenerateCode(field.Type(), DefaultFlag)
+		if f.funcType.Variadic() && i == f.funcType.Params().Len()-1 {
 			typ = jen.Op("...").Add(typ)
 		}
 		if withName {
-			inputs = append(inputs, jen.Id(field.Name).Add(typ))
+			inputs = append(inputs, jen.Id(field.Name()).Add(typ))
 		} else {
 			inputs = append(inputs, typ)
 		}
@@ -198,25 +204,27 @@ func (f *funcMockerGeneratorHelper) generateInputParamSignature(withName bool) [
 }
 
 func (f *funcMockerGeneratorHelper) generateOutputParamSignature(withName bool) []jen.Code {
-	outputs := make([]jen.Code, 0, len(f.funcType.Outputs))
-	for _, field := range f.funcType.Outputs {
+	outputs := make([]jen.Code, 0, f.funcType.Results().Len())
+	for i := 0; i < f.funcType.Results().Len(); i++ {
+		field := f.funcType.Results().At(i)
 		if withName {
-			outputs = append(outputs, jen.Id(field.Name).Add(GenerateCode(field.Type, DefaultFlag)))
+			outputs = append(outputs, jen.Id(field.Name()).Add(GenerateCode(field.Type(), DefaultFlag)))
 		} else {
-			outputs = append(outputs, GenerateCode(field.Type, DefaultFlag))
+			outputs = append(outputs, GenerateCode(field.Type(), DefaultFlag))
 		}
 	}
 	return outputs
 }
 
 func (f *funcMockerGeneratorHelper) generateOutputListWithName(g *jen.Group) {
-	for _, field := range f.funcType.Outputs {
-		g.Id(field.Name)
+	for i := 0; i < f.funcType.Results().Len(); i++ {
+		field := f.funcType.Results().At(i)
+		g.Id(field.Name())
 	}
 }
 
 func (f *funcMockerGeneratorHelper) generateOutputListWithoutName(g *jen.Group) {
-	for i := range f.funcType.Outputs {
+	for i := 0; i < f.funcType.Results().Len(); i++ {
 		g.Id(fmt.Sprint("out", i+1))
 	}
 }
@@ -253,8 +261,9 @@ func (f *funcMockerGeneratorHelper) generateMockDefaultsMethod() jen.Code {
 		Id("MockDefaults").
 		Params(jen.Id("nTimes").Int()).
 		BlockFunc(func(g *jen.Group) {
-			for i, field := range f.funcType.Outputs {
-				g.Var().Add(jen.Id(fmt.Sprint("out", i+1))).Add(GenerateCode(field.Type, BareFunctionFlag))
+			for i := 0; i < f.funcType.Results().Len(); i++ {
+				field := f.funcType.Results().At(i)
+				g.Var().Add(jen.Id(fmt.Sprint("out", i+1))).Add(GenerateCode(field.Type(), BareFunctionFlag))
 			}
 
 			g.Id("m").Dot("MockOutputs").CallFunc(func(g *jen.Group) {
@@ -299,7 +308,7 @@ func (f *funcMockerGeneratorHelper) generateCallMethod() jen.Code {
 				jen.Id("m").Dot("lifetimes").Index(jen.Lit(0)).Op("--"),
 			)
 
-			if hasOutput := len(f.funcType.Outputs) > 0; hasOutput {
+			if hasOutput := f.funcType.Results().Len() > 0; hasOutput {
 				g.ListFunc(f.generateOutputListWithoutName).Op(":=").Id("handler").CallFunc(f.generateInputListWithEllipsis)
 			} else {
 				g.Id("handler").CallFunc(f.generateInputListWithEllipsis)
@@ -319,18 +328,20 @@ func (f *funcMockerGeneratorHelper) noHandler() string {
 }
 
 func (f *funcMockerGeneratorHelper) generateInputListWithEllipsis(g *jen.Group) {
-	for i, field := range f.funcType.Inputs {
-		if f.funcType.IsVariadic && i == len(f.funcType.Inputs)-1 {
-			g.Id(field.Name).Op("...")
+	for i := 0; i < f.funcType.Params().Len(); i++ {
+		field := f.funcType.Params().At(i )
+		if f.funcType.Variadic() && i == f.funcType.Params().Len()-1 {
+			g.Id(field.Name()).Op("...")
 		} else {
-			g.Id(field.Name)
+			g.Id(field.Name())
 		}
 	}
 }
 
 func (f *funcMockerGeneratorHelper) generateInputListWithoutEllipsis(g *jen.Group) {
-	for _, field := range f.funcType.Inputs {
-		g.Id(field.Name)
+	for i := 0; i < f.funcType.Params().Len(); i++ {
+		field := f.funcType.Params().At(i)
+		g.Id(field.Name())
 	}
 }
 
@@ -370,7 +381,7 @@ func (f *funcMockerGeneratorHelper) generateFuncMockerConstructor() jen.Code {
 		Id(f.getMockerConstructorName()).
 		Params().
 		Params(
-			GenerateCode(f.funcType.Type(), BareFunctionFlag),
+			GenerateCode(f.funcType, BareFunctionFlag),
 			jen.Op("*").Id(f.getMockerStructName()),
 		).
 		Block(

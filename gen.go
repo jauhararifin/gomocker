@@ -1,11 +1,14 @@
 package gomocker
 
 import (
+	"context"
 	"fmt"
+	"go/token"
+	"go/types"
 	"io"
 
 	"github.com/dave/jennifer/jen"
-	"github.com/jauhararifin/gotype"
+	"golang.org/x/tools/go/packages"
 )
 
 type generateMockerOption struct {
@@ -24,27 +27,27 @@ type mockerGenerator struct {
 	funcMockerGenerator interface {
 		GenerateFunctionMocker(
 			name string,
-			funcType gotype.FuncType,
+			funcType *types.Signature,
 			withConstructor bool,
 		) jen.Code
 	}
 	interfaceMockerGenerator interface {
 		GenerateInterfaceMocker(
 			name string,
-			interfaceType gotype.InterfaceType,
+			interfaceType *types.Interface,
 		) jen.Code
 	}
 }
 
 func (m *mockerGenerator) GenerateMocker(
-	specs []gotype.TypeSpec,
+	specs []TypeSpec,
 	w io.Writer,
 	options ...GenerateMockerOption,
 ) error {
 	option := m.initOption(options...)
 
 	file := m.createCodeGenFile(option)
-	types, err := gotype.GenerateTypesFromSpecs(specs...)
+	types, err := m.generateTypesFromSpecs(specs...)
 	if err != nil {
 		return err
 	}
@@ -75,39 +78,75 @@ func (m *mockerGenerator) createCodeGenFile(option *generateMockerOption) *jen.F
 	return file
 }
 
-func (m *mockerGenerator) generateEntityMockerByName(
-	option *generateMockerOption,
-	typ gotype.Type,
-	name string,
-) jen.Code {
-	if typ.FuncType != nil {
-		return m.funcMockerGenerator.GenerateFunctionMocker(name, *typ.FuncType, true)
+func (m *mockerGenerator) generateTypesFromSpecs(specs ...TypeSpec) ([]types.Type, error) {
+	fileSet := token.NewFileSet()
+	config := &packages.Config{
+		Mode:    packages.LoadSyntax,
+		Context: context.Background(),
+		Fset:    fileSet,
 	}
 
-	if typ.InterfaceType != nil {
-		return m.interfaceMockerGenerator.GenerateInterfaceMocker(name, *typ.InterfaceType)
+	packageNameSet := make(map[string]struct{})
+	for _, spec := range specs {
+		packageNameSet[spec.PackagePath] = struct{}{}
+	}
+	packageNames := make([]string, 0, len(packageNameSet))
+	for packageName := range packageNameSet {
+		packageNames = append(packageNames, packageName)
+	}
+
+	pkgs, err := packages.Load(config, packageNames...)
+	if err != nil {
+		return nil, fmt.Errorf("cannot load packages: %w", err)
+	}
+
+	resultMap := make(map[TypeSpec]types.Type, len(specs))
+	for _, spec := range specs {
+		resultMap[spec] = nil
+	}
+	for _, pkg := range pkgs {
+		for ident, obj := range pkg.TypesInfo.Defs {
+			typeSpec := TypeSpec{
+				PackagePath: pkg.Name,
+				Name: ident.Name,
+			}
+			if _, ok := resultMap[typeSpec]; ok {
+				resultMap[typeSpec] = obj.Type()
+			}
+		}
+	}
+
+	results := make([]types.Type, 0, len(specs))
+	for _, spec := range specs {
+		if typ, ok := resultMap[spec]; ok {
+			results = append(results, typ)
+		} else {
+			return nil, fmt.Errorf("cannot find type %s:%s", spec.PackagePath, spec.Name)
+		}
+	}
+
+	return results, nil
+}
+
+func (m *mockerGenerator) generateEntityMockerByName(
+	option *generateMockerOption,
+	typ types.Type,
+	name string,
+) jen.Code {
+	if funcType, ok := typ.Underlying().(*types.Signature); ok {
+		return m.funcMockerGenerator.GenerateFunctionMocker(name, funcType, true)
+	}
+
+	if interfaceType, ok := typ.Underlying().(*types.Interface); ok {
+		return m.interfaceMockerGenerator.GenerateInterfaceMocker(name, interfaceType)
 	}
 
 	panic(fmt.Errorf("only supported interface and function"))
 }
 
-func (m *mockerGenerator) generateFunctionMocker(
-	funcName string,
-	funcType gotype.FuncType,
-	mockerNamer FuncMockerNamer,
-) jen.Code {
-	funcMockerGenerator := funcMockerGeneratorHelper{
-		funcName:        funcName,
-		funcType:        funcType,
-		mockerNamer:     mockerNamer,
-		withConstructor: true,
-	}
-	return funcMockerGenerator.generate()
-}
-
 func (m *mockerGenerator) generateInterfaceMocker(
 	interfaceName string,
-	interfaceType gotype.InterfaceType,
+	interfaceType *types.Interface,
 	funcMockerNamer FuncMockerNamer,
 	interfaceMockerNamer InterfaceMockerNamer,
 ) jen.Code {
