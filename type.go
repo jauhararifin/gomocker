@@ -88,7 +88,10 @@ func (c *typeCodeGenerator) generatePrimitiveType(primitiveType *types.Basic, fl
 }
 
 func (c *typeCodeGenerator) generateQualType(qualType *types.Named, flag int32) jen.Code {
-	return jen.Qual(qualType.Obj().Pkg().Path(), qualType.Obj().Name())
+	if qualType.Obj().Pkg() == nil {
+		return jen.Id(qualType.Obj().Name())
+	}
+	return jen.Qual(qualType.Obj().Pkg().Name(), qualType.Obj().Name())
 }
 
 func (c *typeCodeGenerator) generateSliceType(sliceType *types.Slice, flag int32) jen.Code {
@@ -96,7 +99,7 @@ func (c *typeCodeGenerator) generateSliceType(sliceType *types.Slice, flag int32
 }
 
 func (c *typeCodeGenerator) generateArrayType(arrayType *types.Array, flag int32) jen.Code {
-	return jen.Index(jen.Lit(arrayType.Len())).Add(c.GenerateCode(arrayType.Elem(), flag))
+	return jen.Index(jen.Lit(int(arrayType.Len()))).Add(c.GenerateCode(arrayType.Elem(), flag))
 }
 
 func (c *typeCodeGenerator) generatePtrType(ptrType *types.Pointer, flag int32) jen.Code {
@@ -141,15 +144,22 @@ func (c *typeCodeGenerator) generateFuncInputs(inputTypes *types.Tuple, variadic
 	inputs := make([]jen.Code, 0, inputTypes.Len())
 	for i := 0; i < inputTypes.Len(); i++ {
 		inp := inputTypes.At(i)
-		typeCode := c.GenerateCode(inp.Type(), flag)
+		var typeCode jen.Code
 		if variadic && i == inputTypes.Len()-1 {
+			typeCode = c.GenerateCode(inp.Type().(*types.Slice).Elem(), flag)
 			typeCode = jen.Op("...").Add(typeCode)
+		} else {
+			typeCode = c.GenerateCode(inp.Type(), flag)
 		}
 
 		if flag&BareFunctionFlag != 0 {
 			inputs = append(inputs, typeCode)
 		} else {
-			inputs = append(inputs, jen.Id(inp.Name()).Add(typeCode))
+			inpName := inp.Name()
+			if inpName == "" {
+				inpName = fmt.Sprintf("arg%d", i + 1)
+			}
+			inputs = append(inputs, jen.Id(inpName).Add(typeCode))
 		}
 	}
 	return inputs
@@ -159,10 +169,14 @@ func (c *typeCodeGenerator) generateFuncOutputs(outputTypes *types.Tuple, flag i
 	outputs := make([]jen.Code, 0, outputTypes.Len())
 	for i := 0; i < outputTypes.Len(); i++ {
 		out := outputTypes.At(i)
-		if flag*BareFunctionFlag != 0 {
+		if flag&BareFunctionFlag != 0 {
 			outputs = append(outputs, c.GenerateCode(out.Type(), flag))
 		} else {
-			outputs = append(outputs, jen.Id(out.Name()).Add(c.GenerateCode(out.Type(), flag)))
+			outName := out.Name()
+			if outName == "" {
+				outName = fmt.Sprintf("out%d", i+1)
+			}
+			outputs = append(outputs, jen.Id(outName).Add(c.GenerateCode(out.Type(), flag)))
 		}
 	}
 	return outputs

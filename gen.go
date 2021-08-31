@@ -107,7 +107,7 @@ func (m *mockerGenerator) generateTypesFromSpecs(specs ...TypeSpec) ([]types.Typ
 	for _, pkg := range pkgs {
 		for ident, obj := range pkg.TypesInfo.Defs {
 			typeSpec := TypeSpec{
-				PackagePath: pkg.Name,
+				PackagePath: pkg.PkgPath,
 				Name: ident.Name,
 			}
 			if _, ok := resultMap[typeSpec]; ok {

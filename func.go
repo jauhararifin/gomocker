@@ -78,11 +78,17 @@ func (f *funcMockerGeneratorHelper) generateInputOutputStruct(
 	return jen.StructFunc(func(g *jen.Group) {
 		for i := 0; i < fields.Len(); i++ {
 			field := fields.At(i)
-			typ := GenerateCode(field.Type(), BareFunctionFlag)
-			if isVariadic && !isOutput && i == fields.Len()-1 {
-				typ = jen.Index().Add(typ)
+			fieldName := field.Name()
+			if fieldName == "" {
+				if isOutput {
+					fieldName = fmt.Sprintf("Out%d", i+1)
+				} else {
+					fieldName = fmt.Sprintf("Arg%d", i+1)
+				}
 			}
-			g.Id(makePublic(field.Name())).Add(typ)
+
+			typ := GenerateCode(field.Type(), BareFunctionFlag)
+			g.Id(makePublic(fieldName)).Add(typ)
 		}
 	})
 }
@@ -190,12 +196,22 @@ func (f *funcMockerGeneratorHelper) generateInputParamSignature(withName bool) [
 	inputs := make([]jen.Code, 0, f.funcType.Params().Len())
 	for i := 0; i < f.funcType.Params().Len(); i++ {
 		field := f.funcType.Params().At(i)
-		typ := GenerateCode(field.Type(), DefaultFlag)
+
+		var typ jen.Code
 		if f.funcType.Variadic() && i == f.funcType.Params().Len()-1 {
+			typ = GenerateCode(field.Type().(*types.Slice).Elem(), DefaultFlag)
 			typ = jen.Op("...").Add(typ)
+		} else {
+			typ = GenerateCode(field.Type(), DefaultFlag)
 		}
+
 		if withName {
-			inputs = append(inputs, jen.Id(field.Name()).Add(typ))
+			fieldName := field.Name()
+			if fieldName == "" {
+				fieldName = fmt.Sprintf("arg%d", i+1)
+			}
+
+			inputs = append(inputs, jen.Id(fieldName).Add(typ))
 		} else {
 			inputs = append(inputs, typ)
 		}
@@ -208,7 +224,11 @@ func (f *funcMockerGeneratorHelper) generateOutputParamSignature(withName bool) 
 	for i := 0; i < f.funcType.Results().Len(); i++ {
 		field := f.funcType.Results().At(i)
 		if withName {
-			outputs = append(outputs, jen.Id(field.Name()).Add(GenerateCode(field.Type(), DefaultFlag)))
+			fieldName := field.Name()
+			if fieldName == "" {
+				fieldName = fmt.Sprintf("out%d", i+1)
+			}
+			outputs = append(outputs, jen.Id(fieldName).Add(GenerateCode(field.Type(), DefaultFlag)))
 		} else {
 			outputs = append(outputs, GenerateCode(field.Type(), DefaultFlag))
 		}
@@ -219,7 +239,11 @@ func (f *funcMockerGeneratorHelper) generateOutputParamSignature(withName bool) 
 func (f *funcMockerGeneratorHelper) generateOutputListWithName(g *jen.Group) {
 	for i := 0; i < f.funcType.Results().Len(); i++ {
 		field := f.funcType.Results().At(i)
-		g.Id(field.Name())
+		if field.Name() == "" {
+			g.Id(fmt.Sprintf("out%d", i+1))
+		} else {
+			g.Id(field.Name())
+		}
 	}
 }
 
@@ -329,11 +353,16 @@ func (f *funcMockerGeneratorHelper) noHandler() string {
 
 func (f *funcMockerGeneratorHelper) generateInputListWithEllipsis(g *jen.Group) {
 	for i := 0; i < f.funcType.Params().Len(); i++ {
-		field := f.funcType.Params().At(i )
+		field := f.funcType.Params().At(i)
+		fieldName := field.Name()
+		if fieldName == "" {
+			fieldName = fmt.Sprintf("arg%d", i+1)
+		}
+
 		if f.funcType.Variadic() && i == f.funcType.Params().Len()-1 {
-			g.Id(field.Name()).Op("...")
+			g.Id(fieldName).Op("...")
 		} else {
-			g.Id(field.Name())
+			g.Id(fieldName)
 		}
 	}
 }
@@ -341,7 +370,12 @@ func (f *funcMockerGeneratorHelper) generateInputListWithEllipsis(g *jen.Group) 
 func (f *funcMockerGeneratorHelper) generateInputListWithoutEllipsis(g *jen.Group) {
 	for i := 0; i < f.funcType.Params().Len(); i++ {
 		field := f.funcType.Params().At(i)
-		g.Id(field.Name())
+		fieldName := field.Name()
+		if fieldName == "" {
+			fieldName = fmt.Sprintf("arg%d", i+1)
+		}
+
+		g.Id(fieldName)
 	}
 }
 
