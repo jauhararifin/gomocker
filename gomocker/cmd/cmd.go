@@ -98,6 +98,11 @@ func executeGen(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	dir := path.Dir(outputFile)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+		return fmt.Errorf("cannot create dir %s: %v", dir, err)
+	}
+
 	outputF, err := os.Create(outputFile)
 	if err != nil {
 		return err
